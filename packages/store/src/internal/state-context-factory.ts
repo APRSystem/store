@@ -17,12 +17,16 @@ export class StateContextFactory {
   /**
    * Create the state context
    */
-  createStateContext(metadata: MappedStore): StateContext<any> {
+  createStateContext(metadata: MappedStore, path?: string): StateContext<any> {
     const root = this._internalStateOperations.getRootStateOperations();
     return {
       getState(): any {
         const state = root.getState();
-        return getValue(state, metadata.depth);
+        if (path) {
+          return getValue(state, path);
+        } else {
+          return getValue(state, metadata.depth);
+        }
       },
       patchState(val: any): any {
         const isArray = Array.isArray(val);
@@ -35,20 +39,34 @@ export class StateContextFactory {
         }
 
         const state = root.getState();
-        const local = getValue(state, metadata.depth);
+        let local;
+        if (path) {
+          local = getValue(state, path);
+        } else {
+          local = getValue(state, metadata.depth);
+        }
         const clone = { ...local };
 
         for (const k in val) {
           clone[k] = val[k];
         }
 
-        const newState = setValue(state, metadata.depth, clone);
+        let newState;
+        if (path) {
+          newState = setValue(state, path, clone);
+        } else {
+          newState = setValue(state, metadata.depth, clone);
+        }
         root.setState(newState);
         return newState;
       },
       setState(val: any): any {
         let state = root.getState();
-        state = setValue(state, metadata.depth, val);
+        if (path) {
+          state = setValue(state, path, val);
+        } else {
+          state = setValue(state, metadata.depth, val);
+        }
         root.setState(state);
         return state;
       },

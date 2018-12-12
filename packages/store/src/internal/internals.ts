@@ -19,6 +19,7 @@ export interface ActionHandlerMetaData {
   fn: string | symbol;
   options: ActionOptions;
   type: string;
+  lineAction: boolean;
 }
 
 export interface StateOperations<T> {
@@ -27,14 +28,23 @@ export interface StateOperations<T> {
   dispatch(actions: any | any[]): Observable<void>;
 }
 
+export interface StateLocation {
+  context: string;
+  name: string;
+  parentName: string;
+  path: string;
+}
+
 export interface MetaDataModel {
   name: string | null;
   actions: ObjectKeyMap<ActionHandlerMetaData[]>;
   defaults: any;
   path: string | null;
   selectFromAppState: SelectFromState | null;
+  selectsFromAppState: Map<StateLocation, SelectFromState>;
   children?: StateClass[];
   instance: any;
+  inheritedActions?: any[];
 }
 
 export type SelectFromState = (state: any) => any;
@@ -52,6 +62,8 @@ export interface MappedStore {
   defaults: any;
   instance: any;
   depth: string;
+  context: string;
+  inheritedActions?: any[];
 }
 
 /**
@@ -67,6 +79,7 @@ export function ensureStoreMetadata(target: StateClass): MetaDataModel {
       defaults: {},
       path: null,
       selectFromAppState: null,
+      selectsFromAppState: new Map<StateLocation, SelectFromState>(),
       children: [],
       instance: null
     };
@@ -136,7 +149,7 @@ function compliantPropGetter(paths: string[]): (x: any) => any {
  *
  * @ignore
  */
-function fastPropGetter(paths: string[]): (x: any) => any {
+export function fastPropGetter(paths: string[]): (x: any) => any {
   const segments = paths;
   let seg = 'store.' + segments[0];
   let i = 0;

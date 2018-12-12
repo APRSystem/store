@@ -1,0 +1,1 @@
+export const NGXS_MAIN_CONTEXT = 'NGXS_MAIN_CONTEXT';

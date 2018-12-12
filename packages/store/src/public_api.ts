@@ -1,5 +1,7 @@
 export { NgxsModule } from './module';
 export { Action } from './decorators/action';
+export { NgxsAction } from './actions/base.action';
+export { SelectLocation } from './common/selectLocation';
 export { Store } from './store';
 export { State } from './decorators/state';
 export { Select } from './decorators/select';

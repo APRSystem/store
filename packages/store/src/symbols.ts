@@ -91,6 +91,8 @@ export interface StoreOptions<T> {
    * Sub states for the given state.
    */
   children?: any[];
+
+  inheritedActions?: any[];
 }
 
 /**

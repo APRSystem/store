@@ -11,13 +11,20 @@ import {
   propGetter,
   isObject,
   MappedStore,
-  StateClass
+  StateClass,
+  StateLocation,
+  getStoreMetadata,
+  SelectFromState
 } from './internals';
 import { getActionTypeFromInstance, setValue } from '../utils/utils';
 import { ofActionDispatched } from '../operators/of-action';
 import { InternalActions, ActionStatus, ActionContext } from '../actions-stream';
 import { InternalDispatchedActionResults } from '../internal/dispatcher';
 import { StateContextFactory } from '../internal/state-context-factory';
+import { InternalStateOperations } from './state-operations';
+import { NgxsAction } from '../actions/base.action';
+import { NGXS_MAIN_CONTEXT } from '../common/consts';
+import { SelectLocation } from '../common/selectLocation';
 
 /**
  * State factory class
@@ -40,7 +47,8 @@ export class StateFactory {
     private _parentFactory: StateFactory,
     private _actions: InternalActions,
     private _actionResults: InternalDispatchedActionResults,
-    private _stateContextFactory: StateContextFactory
+    private _stateContextFactory: StateContextFactory,
+    private _internalStateOperations: InternalStateOperations
   ) {}
 
   /**
@@ -68,11 +76,24 @@ export class StateFactory {
       }
 
       const depth = depths[name];
-      const { actions } = stateClass[META_KEY]!;
+      const { actions, inheritedActions } = stateClass[META_KEY]!;
       let { defaults } = stateClass[META_KEY]!;
 
       stateClass[META_KEY]!.path = depth;
       stateClass[META_KEY]!.selectFromAppState = propGetter(depth.split('.'), this._config);
+      const depthSplitted = depth.split('.');
+      const depthCount = depthSplitted.length;
+      let parentName = '';
+      if (depthCount > 1) {
+        parentName = depthSplitted[depthCount - 2];
+      }
+      const stateLocation = <StateLocation>{
+        context: NGXS_MAIN_CONTEXT,
+        name: name,
+        path: depth,
+        parentName: parentName
+      };
+      stateClass[META_KEY].selectsFromAppState.set(stateLocation, stateClass[META_KEY].selectFromAppState);
 
       // ensure our store hasn't already been added
       // but dont throw since it could be lazy
@@ -95,7 +116,9 @@ export class StateFactory {
           instance,
           defaults,
           name,
-          depth
+          depth,
+          context: NGXS_MAIN_CONTEXT,
+          inheritedActions
         });
       }
     }
@@ -158,12 +181,35 @@ export class StateFactory {
    */
   invokeActions(actions$: InternalActions, action: any) {
     const results = [];
-
+    // TODO tu jest wywoływana akcja i przekazywany do niej StateContext
+    const state = this._internalStateOperations.getRootStateOperations().getState();
+    let lineName = '';
+    if (this.currentLineExists(state)) {
+      lineName = 'line' + state.afAppCore.appLines.currentLine.number.toString();
+    }
     for (const metadata of this.states) {
       const type = getActionTypeFromInstance(action)!;
       const actionMetas = metadata.actions[type];
 
       if (actionMetas) {
+        let stop = false;
+        if (action.constructor['lineAction']) {
+          if (lineName !== '') {
+            if (!metadata.depth.startsWith('lines.' + lineName)) {
+              stop = true;
+            }
+          }
+          if (stop) {
+            continue;
+          }
+        }
+        if (action instanceof NgxsAction) {
+          if (action.location) {
+            if (!this.checkLocationWithMappedStore(action.location, metadata)) {
+              continue;
+            }
+          }
+        }
         for (const actionMeta of actionMetas) {
           const stateContext = this.createStateContext(metadata);
           try {
@@ -202,7 +248,57 @@ export class StateFactory {
   /**
    * Create the state context
    */
-  private createStateContext(metadata: MappedStore) {
-    return this._stateContextFactory.createStateContext(metadata);
+  private createStateContext(metadata: MappedStore, path?: string) {
+    return this._stateContextFactory.createStateContext(metadata, path);
+  }
+
+  currentLineExists(state: any): boolean {
+    if (!state.afAppCore) {
+      return false;
+    }
+    if (!state.afAppCore.appLines) {
+      return false;
+    }
+    if (!state.afAppCore.appLines.currentLine) {
+      return false;
+    }
+    return true;
+  }
+
+  getLocationPath(location: SelectLocation, state: any): string {
+    const storeMeta = getStoreMetadata(state);
+    if (!location.searchInTree) {
+      if (location.path !== '') {
+        return location.path;
+      }
+      if (location.name !== '') {
+        storeMeta.selectsFromAppState.forEach((value: SelectFromState, key: StateLocation) => {
+          if (key.name === location.name) {
+            return key.path;
+          }
+        });
+      }
+    } else {
+      if (location.context !== '') {
+        const tmp = this.states.filter(p => p.context === location.context && p.name === location.name);
+        return tmp[0].depth;
+      }
+    }
+  }
+
+  private checkLocationWithMappedStore(location: SelectLocation, mappedStore: MappedStore): boolean {
+    if (location.path && location.path === mappedStore.depth) {
+      return true;
+    }
+    if (location.name) {
+      if (location.context && (location.name === mappedStore.name && location.context === mappedStore.context)) {
+        return true;
+      } else {
+        if (location.name === mappedStore.name) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }

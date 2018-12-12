@@ -18,13 +18,50 @@ export function State<T>(options: StoreOptions<T>) {
     const meta = ensureStoreMetadata(target);
 
     // Handle inheritance
-    if (Object.getPrototypeOf(target).hasOwnProperty(META_KEY)) {
-      const parentMeta = Object.getPrototypeOf(target)[META_KEY];
-
-      meta.actions = {
-        ...meta.actions,
-        ...parentMeta.actions
-      };
+    if (Object.getPrototypeOf(target)) {
+      const stateClasses = getInheritanceTree(target);
+      for (const stateClass of stateClasses) {
+        if (stateClass.hasOwnProperty(META_KEY)) {
+          const parentMeta = stateClass[META_KEY];
+          meta.actions = {
+            ...meta.actions,
+            ...parentMeta.actions
+          };
+        }
+      }
+    }
+    // if (Object.getPrototypeOf(target).hasOwnProperty(META_KEY)) {
+    //   const parentMeta = Object.getPrototypeOf(target)[META_KEY];
+    //
+    //   meta.actions = {
+    //     ...meta.actions,
+    //     ...parentMeta.actions
+    //   };
+    // }
+    if (options.inheritedActions) {
+      for (const action of options.inheritedActions) {
+        if (Object.getPrototypeOf(action)) {
+          const classes = getInheritanceTree(action);
+          for (const actionClass of classes) {
+            const baseType = actionClass.type;
+            const actionsMeta = meta.actions[baseType];
+            if (actionsMeta) {
+              for (const actMeta of actionsMeta) {
+                if (!meta.actions[action.type]) {
+                  meta.actions[action.type] = [];
+                }
+                const lineAction = action.lineAction ? true : false;
+                meta.actions[action.type].push({
+                  fn: actMeta.fn,
+                  options: actMeta.options || {},
+                  type: action.type,
+                  lineAction: lineAction
+                });
+              }
+            }
+          }
+        }
+      }
     }
 
     meta.children = options.children;
@@ -39,4 +76,16 @@ export function State<T>(options: StoreOptions<T>) {
       throw new Error(stateNameErrorMessage(options.name));
     }
   };
+}
+
+/**
+ * Get parent all parent classes
+ */
+export function getInheritanceTree(target: any): any[] {
+  const tree = [];
+  if (Object.getPrototypeOf(target)) {
+    tree.push(Object.getPrototypeOf(target));
+    tree.push(...getInheritanceTree(Object.getPrototypeOf(target)));
+  }
+  return tree;
 }

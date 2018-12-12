@@ -1,4 +1,10 @@
-import { SelectFromState, ensureSelectorMetadata, getSelectorMetadata, getStoreMetadata } from '../internal/internals';
+import {
+  ensureSelectorMetadata,
+  fastPropGetter,
+  getSelectorMetadata,
+  getStoreMetadata,
+  SelectFromState
+} from '../internal/internals';
 import { memoize } from '../utils/memoize';
 
 /**
@@ -70,7 +76,10 @@ export function createSelector<T extends (...args: any[]) => R, R>(
  * This function gets the selector function to be used to get the selected slice from the app state
  * @ignore
  */
-export function getSelectorFn(selector: any): SelectFromState {
+export function getSelectorFn(selector: any, path?: String): SelectFromState {
+  if (path) {
+    return fastPropGetter(path.split('.'));
+  }
   const metadata = getSelectorMetadata(selector) || getStoreMetadata(selector);
   return (metadata && metadata.selectFromAppState) || selector;
 }
