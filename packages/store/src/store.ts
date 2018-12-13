@@ -9,11 +9,9 @@ import { NGXS_MAIN_CONTEXT } from './common/consts';
 import { SelectLocation } from './common/selectLocation';
 import {
   ActionHandlerMetaData,
-  getStoreMetadata,
   MappedStore,
   ObjectKeyMap,
   propGetter,
-  SelectFromState,
   StateClass,
   StateLocation,
   StateOperations
@@ -282,13 +280,9 @@ export class Store {
       if (children) {
         children.forEach((item, index) => {
           if (inLine) {
-            mappedStores.push(
-              ...this.addChildInternal(depth, item, item[META_KEY].name, stateOperations, location, inLine)
-            );
+            mappedStores.push(...this.addChildInternal(depth, item, item[META_KEY].name, stateOperations, location, inLine));
           } else {
-            mappedStores.push(
-              ...this.addChildInternal(childName, item, item[META_KEY].name, stateOperations, location, inLine)
-            );
+            mappedStores.push(...this.addChildInternal(childName, item, item[META_KEY].name, stateOperations, location, inLine));
           }
         });
       }

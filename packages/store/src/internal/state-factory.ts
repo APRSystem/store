@@ -134,10 +134,7 @@ export class StateFactory {
   addAndReturnDefaults(stateClasses: any[]): { defaults: any; states: MappedStore[] } | undefined {
     if (stateClasses) {
       const states = this.add(stateClasses);
-      const defaults = states.reduce(
-        (result: any, meta: MappedStore) => setValue(result, meta.depth, meta.defaults),
-        {}
-      );
+      const defaults = states.reduce((result: any, meta: MappedStore) => setValue(result, meta.depth, meta.defaults), {});
       return { defaults, states };
     }
   }
