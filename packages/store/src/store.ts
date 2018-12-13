@@ -205,6 +205,7 @@ export class Store {
 
   private addChildInternal(
     parent: string,
+    parentType: string,
     child: any,
     childName: string,
     stateOperations: StateOperations<any>,
@@ -220,7 +221,13 @@ export class Store {
     if (inLine) {
       parentMetaData = this._stateFactory.states.find(p => p.depth === parent);
     } else {
-      parentMetaData = this._stateFactory.states.find(p => p.name === parent && p.context === location.context);
+      if (location.path) {
+        parentMetaData = this._stateFactory.states.find(
+          p => p.depth.startsWith(location.path) && p.instance.constructor.name === parentType
+        );
+      } else {
+        parentMetaData = this._stateFactory.states.find(p => p.name === parent && p.context === location.context);
+      }
     }
 
     const mappedStores: MappedStore[] = [];
@@ -280,9 +287,11 @@ export class Store {
       if (children) {
         children.forEach((item, index) => {
           if (inLine) {
-            mappedStores.push(...this.addChildInternal(depth, item, item[META_KEY].name, stateOperations, location, inLine));
+            mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inLine));
           } else {
-            mappedStores.push(...this.addChildInternal(childName, item, item[META_KEY].name, stateOperations, location, inLine));
+            mappedStores.push(
+              ...this.addChildInternal(childName, child.name, item, item[META_KEY].name, stateOperations, location, inLine)
+            );
           }
         });
       }
@@ -309,7 +318,7 @@ export class Store {
       childName = child[META_KEY].name;
     }
     const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-    mappedStores.push(...this.addChildInternal(parentLocalName, child, childName, stateOperations, loc));
+    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, loc));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
@@ -338,7 +347,7 @@ export class Store {
       childName = child[META_KEY].name;
     }
     // const path = this._stateFactory.getContextPath(context);
-    mappedStores.push(...this.addChildInternal(parentLocalName, child, childName, stateOperations, filter));
+    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, filter));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
@@ -359,10 +368,10 @@ export class Store {
     }
     const lineName = 'lines.line' + lineNumber.toString();
     if (location) {
-      mappedStores.push(...this.addChildInternal(lineName, child, childName, stateOperations, location, true));
+      mappedStores.push(...this.addChildInternal(lineName, '', child, childName, stateOperations, location, true));
     } else {
       const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-      mappedStores.push(...this.addChildInternal(lineName, child, childName, stateOperations, loc, true));
+      mappedStores.push(...this.addChildInternal(lineName, '', child, childName, stateOperations, loc, true));
     }
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
