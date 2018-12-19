@@ -7,8 +7,7 @@ const stateNameRegex = new RegExp('^[a-zA-Z0-9_]+$');
  * Error message
  * @ignore
  */
-export const stateNameErrorMessage = (name: string) =>
-  `${name} is not a valid state name. It needs to be a valid object property name.`;
+export const stateNameErrorMessage = (name: string) => `${name} is not a valid state name. It needs to be a valid object property name.`;
 
 /**
  * Decorates a class with ngxs state information.
@@ -30,14 +29,6 @@ export function State<T>(options: StoreOptions<T>) {
         }
       }
     }
-    // if (Object.getPrototypeOf(target).hasOwnProperty(META_KEY)) {
-    //   const parentMeta = Object.getPrototypeOf(target)[META_KEY];
-    //
-    //   meta.actions = {
-    //     ...meta.actions,
-    //     ...parentMeta.actions
-    //   };
-    // }
     if (options.inheritedActions) {
       for (const action of options.inheritedActions) {
         if (Object.getPrototypeOf(action)) {
@@ -50,12 +41,10 @@ export function State<T>(options: StoreOptions<T>) {
                 if (!meta.actions[action.type]) {
                   meta.actions[action.type] = [];
                 }
-                const lineAction = action.lineAction ? true : false;
                 meta.actions[action.type].push({
                   fn: actMeta.fn,
                   options: actMeta.options || {},
-                  type: action.type,
-                  lineAction: lineAction
+                  type: action.type
                 });
               }
             }

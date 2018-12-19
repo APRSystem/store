@@ -1,3 +1,6 @@
+/**
+ * Class specifies location of element in state object
+ */
 export class SelectLocation {
   constructor(public context: string, public name: string, public path: string, public searchInTree) {}
 

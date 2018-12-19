@@ -22,15 +22,10 @@ export function Action(actions: any | any[], options?: ActionOptions) {
       if (!meta.actions[type]) {
         meta.actions[type] = [];
       }
-      let lineAction = false;
-      if (action.lineAction) {
-        lineAction = true;
-      }
       meta.actions[type].push({
         fn: name,
         options: options || {},
-        type,
-        lineAction: lineAction
+        type
       });
     }
   };

@@ -210,15 +210,14 @@ export class Store {
     childName: string,
     stateOperations: StateOperations<any>,
     location: SelectLocation,
-    inLine: boolean = false
+    inPath: boolean = false
   ): MappedStore[] {
     if (location.context === '') {
       location.context = NGXS_MAIN_CONTEXT;
     }
-    // const stateOperations = this._internalStateOperations.getRootStateOperations();
     const cur = stateOperations.getState();
     let parentMetaData;
-    if (inLine) {
+    if (inPath) {
       parentMetaData = this._stateFactory.states.find(p => p.depth === parent);
     } else {
       if (location.path) {
@@ -233,18 +232,6 @@ export class Store {
     const mappedStores: MappedStore[] = [];
     const actions: ObjectKeyMap<ActionHandlerMetaData[]> = child[META_KEY].actions;
     const { defaults } = child[META_KEY];
-
-    for (const actionType of Object.keys(actions)) {
-      if (actions[actionType].filter(p => p.lineAction === true).length === 0) {
-        this._stateFactory.states.forEach(item => {
-          if (item.actions) {
-            if (item.actions[actionType]) {
-              throw new Error('Action with type ' + actionType + ' already added to store.');
-            }
-          }
-        });
-      }
-    }
 
     const depth = parentMetaData.depth + '.' + childName;
     child[META_KEY].path = depth;
@@ -286,11 +273,11 @@ export class Store {
       const { children } = child[META_KEY];
       if (children) {
         children.forEach((item, index) => {
-          if (inLine) {
-            mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inLine));
+          if (inPath) {
+            mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inPath));
           } else {
             mappedStores.push(
-              ...this.addChildInternal(childName, child.name, item, item[META_KEY].name, stateOperations, location, inLine)
+              ...this.addChildInternal(childName, child.name, item, item[META_KEY].name, stateOperations, location, inPath)
             );
           }
         });
@@ -346,7 +333,6 @@ export class Store {
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    // const path = this._stateFactory.getContextPath(context);
     mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, filter));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
@@ -354,25 +340,13 @@ export class Store {
     });
   }
 
-  /**
-   * Adds child state to current line
-   * @param child Child state
-   */
-  addLineChild(child: any, childName?: string, location?: SelectLocation) {
+  addChildInPath(child: any, location: SelectLocation, childName?: string) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const mappedStores: MappedStore[] = [];
-    const cur = stateOperations.getState();
-    const lineNumber = cur.afAppCore.appLines.currentLine.number;
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    const lineName = 'lines.line' + lineNumber.toString();
-    if (location) {
-      mappedStores.push(...this.addChildInternal(lineName, '', child, childName, stateOperations, location, true));
-    } else {
-      const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-      mappedStores.push(...this.addChildInternal(lineName, '', child, childName, stateOperations, loc, true));
-    }
+    mappedStores.push(...this.addChildInternal(location.path, parent.name, child, childName, stateOperations, location, true));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
@@ -403,15 +377,13 @@ export class Store {
    * @param previousLine number of previous line
    * @param currentLine number of current line
    */
-  changeCurrentLine(previousLine: number, currentLine: number) {
-    const prevLineName = 'line' + previousLine.toString();
-    const currLineName = 'line' + currentLine.toString();
+  changeCurrentLine(previousLine: string, currentLine: string) {
     this._stateFactory.states
-      .filter(p => p.depth.includes('lines'))
+      .filter(p => p.depth.includes(previousLine))
       .forEach(state => {
         if (state.instance) {
           const path: string = state.instance.constructor[META_KEY].path.toString();
-          state.instance.constructor[META_KEY].path = path.replace(prevLineName, currLineName);
+          state.instance.constructor[META_KEY].path = path.replace(previousLine, currentLine);
         }
       });
   }

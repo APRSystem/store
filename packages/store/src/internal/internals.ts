@@ -19,7 +19,6 @@ export interface ActionHandlerMetaData {
   fn: string | symbol;
   options: ActionOptions;
   type: string;
-  lineAction: boolean;
 }
 
 export interface StateOperations<T> {

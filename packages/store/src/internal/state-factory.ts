@@ -1,30 +1,29 @@
-import { Injector, Injectable, SkipSelf, Optional } from '@angular/core';
-import { Observable, of, forkJoin, from, throwError } from 'rxjs';
-import { shareReplay, takeUntil, map, catchError, filter, mergeMap, defaultIfEmpty } from 'rxjs/operators';
-
-import { META_KEY, NgxsLifeCycle, NgxsConfig } from '../symbols';
-import {
-  topologicalSort,
-  buildGraph,
-  findFullParentPath,
-  nameToState,
-  propGetter,
-  isObject,
-  MappedStore,
-  StateClass,
-  StateLocation,
-  getStoreMetadata,
-  SelectFromState
-} from './internals';
-import { getActionTypeFromInstance, setValue } from '../utils/utils';
-import { ofActionDispatched } from '../operators/of-action';
-import { InternalActions, ActionStatus, ActionContext } from '../actions-stream';
-import { InternalDispatchedActionResults } from '../internal/dispatcher';
-import { StateContextFactory } from '../internal/state-context-factory';
-import { InternalStateOperations } from './state-operations';
+import { Injectable, Injector, Optional, SkipSelf } from '@angular/core';
+import { forkJoin, from, Observable, of, throwError } from 'rxjs';
+import { catchError, defaultIfEmpty, filter, map, mergeMap, shareReplay, takeUntil } from 'rxjs/operators';
+import { ActionContext, ActionStatus, InternalActions } from '../actions-stream';
 import { NgxsAction } from '../actions/base.action';
 import { NGXS_MAIN_CONTEXT } from '../common/consts';
 import { SelectLocation } from '../common/selectLocation';
+import { InternalDispatchedActionResults } from '../internal/dispatcher';
+import { StateContextFactory } from '../internal/state-context-factory';
+import { ofActionDispatched } from '../operators/of-action';
+import { META_KEY, NgxsConfig, NgxsLifeCycle } from '../symbols';
+import { getActionTypeFromInstance, setValue } from '../utils/utils';
+import {
+  buildGraph,
+  findFullParentPath,
+  getStoreMetadata,
+  isObject,
+  MappedStore,
+  nameToState,
+  propGetter,
+  SelectFromState,
+  StateClass,
+  StateLocation,
+  topologicalSort
+} from './internals';
+import { InternalStateOperations } from './state-operations';
 
 /**
  * State factory class
@@ -180,26 +179,11 @@ export class StateFactory {
     const results = [];
     // TODO tu jest wywoływana akcja i przekazywany do niej StateContext
     const state = this._internalStateOperations.getRootStateOperations().getState();
-    let lineName = '';
-    if (this.currentLineExists(state)) {
-      lineName = 'line' + state.afAppCore.appLines.currentLine.number.toString();
-    }
     for (const metadata of this.states) {
       const type = getActionTypeFromInstance(action)!;
       const actionMetas = metadata.actions[type];
 
       if (actionMetas) {
-        let stop = false;
-        if (action.constructor['lineAction']) {
-          if (lineName !== '') {
-            if (!metadata.depth.startsWith('lines.' + lineName)) {
-              stop = true;
-            }
-          }
-          if (stop) {
-            continue;
-          }
-        }
         if (action instanceof NgxsAction) {
           if (action.location) {
             if (!this.checkLocationWithMappedStore(action.location, metadata)) {
@@ -247,19 +231,6 @@ export class StateFactory {
    */
   private createStateContext(metadata: MappedStore, path?: string) {
     return this._stateContextFactory.createStateContext(metadata, path);
-  }
-
-  currentLineExists(state: any): boolean {
-    if (!state.afAppCore) {
-      return false;
-    }
-    if (!state.afAppCore.appLines) {
-      return false;
-    }
-    if (!state.afAppCore.appLines.currentLine) {
-      return false;
-    }
-    return true;
   }
 
   getLocationPath(location: SelectLocation, state: any): string {
