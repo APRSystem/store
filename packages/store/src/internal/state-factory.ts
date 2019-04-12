@@ -76,7 +76,7 @@ export class StateFactory {
       }
 
       const depth = depths[name];
-      const { actions, inheritedActions, selectors } = stateClass[META_KEY]!;
+      const { actions, selectors } = stateClass[META_KEY]!;
       let { defaults } = stateClass[META_KEY]!;
 
       stateClass[META_KEY]!.path = depth;
@@ -94,7 +94,7 @@ export class StateFactory {
         path: depth,
         parentName: parentName
       };
-      stateClass[META_KEY].selectsFromAppState.set(stateLocation, stateClass[META_KEY].selectFromAppState);
+      stateClass[META_KEY]!.selectsFromAppState.set(stateLocation, propGetter(depth.split('.'), this._config));
 
       // ensure our store hasn't already been added
       // but dont throw since it could be lazy
@@ -119,8 +119,7 @@ export class StateFactory {
           defaults,
           name,
           depth,
-          context: NGXS_MAIN_CONTEXT,
-          inheritedActions
+          context: NGXS_MAIN_CONTEXT
         });
       }
     }
@@ -196,14 +195,14 @@ export class StateFactory {
    */
   invokeActions(actions$: InternalActions, action: any) {
     const results = [];
-    // TODO TC tu jest wywoływana akcja i przekazywany do niej StateContext
-    // const state = this._internalStateOperations.getRootStateOperations().getState();
+    /** Variable to check if action was executed */
     let actionExecuted = false;
     for (const metadata of this.states) {
       const type = getActionTypeFromInstance(action)!;
       const actionMetas = metadata.actions[type];
 
       if (actionMetas) {
+        /** Check if action implements NgxsAction and if store location equals to MappedStore location */
         if (action instanceof NgxsAction) {
           if (action.location) {
             if (!this.checkLocationWithMappedStore(action.location, metadata)) {
@@ -215,6 +214,7 @@ export class StateFactory {
           const stateContext = this.createStateContext(metadata);
           try {
             let result = metadata.instance[actionMeta.fn](stateContext, action);
+            /** set action was executed */
             actionExecuted = true;
 
             if (result instanceof Promise) {
@@ -243,6 +243,7 @@ export class StateFactory {
         }
       }
     }
+    /** I action was not executed and is of command kind then log error */
     if (!actionExecuted) {
       if (action instanceof NgxsAction) {
         if (action.kind !== ActionKind.akEvent) {
@@ -267,6 +268,7 @@ export class StateFactory {
     return this._stateContextFactory.createStateContext(metadata, path);
   }
 
+  /** Function returns state data path based on SelectLocation and state metatadata */
   getLocationPath(location: SelectLocation, state: any): string {
     const storeMeta = getStoreMetadata(state);
     if (!location.searchInTree) {
@@ -288,6 +290,7 @@ export class StateFactory {
     throw new Error(`AF Error, wrong get location path`);
   }
 
+  /** Function checks is MappedStore and SelectLocation points to same state data */
   private checkLocationWithMappedStore(location: SelectLocation, mappedStore: MappedStore): boolean {
     if (location.path && location.path === mappedStore.depth) {
       return true;

@@ -27,6 +27,7 @@ export interface StateOperations<T> {
   dispatch(actions: any | any[]): Observable<void>;
 }
 
+/** Interface for storing location of state data in state data tree */
 export interface StateLocation {
   context: string;
   name: string;
@@ -41,10 +42,10 @@ export interface MetaDataModel {
   defaults: any;
   path: string | null;
   selectFromAppState: SelectFromState | null;
+  /** Locations of state data */
   selectsFromAppState: Map<StateLocation, SelectFromState>;
   children?: StateClass[];
   instance: any;
-  inheritedActions?: any[];
 }
 
 export type SelectFromState = (state: any) => any;
@@ -64,7 +65,6 @@ export interface MappedStore {
   instance: any;
   depth: string;
   context: string;
-  inheritedActions?: any[];
 }
 
 /**

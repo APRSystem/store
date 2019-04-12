@@ -46,6 +46,10 @@ export class Store {
     return this._internalStateOperations.getRootStateOperations().dispatch(event);
   }
 
+  /** 
+   * Allows to dispatch action with State Location specified, so we can specifiy on which part of
+   * State data tree we want action to work
+   */
   dispatchInLocation(event: NgxsAction | NgxsAction[], location: SelectLocation): Observable<any> {
     if (Array.isArray(event)) {
       event.forEach(evnt => (evnt.location = location));
@@ -97,6 +101,7 @@ export class Store {
     return selectorFn(this._stateStream.getValue());
   }
 
+  /** Allows to select slice of data from the store from specified location */
   selectInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
   selectInContext(selector: string | any, filter: SelectLocation): Observable<any>;
   selectInContext(selector: any, filter: SelectLocation): Observable<any> {
@@ -115,7 +120,7 @@ export class Store {
       enterZone(this._ngZone)
     );
   }
-
+/** Allows to select one slice of data from the store from specified location */
   selectOnceInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
   selectOnceInContext(selector: string | any, filter: SelectLocation): Observable<any>;
   selectOnceInContext(selector: any, filter: SelectLocation): Observable<any> {
@@ -123,7 +128,7 @@ export class Store {
   }
 
   /**
-   * Select a snapshot from the state.
+   * Select a snapshot from the state  from specified location 
    */
   selectSnapshotInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): T;
   selectSnapshotInContext(selector: string | any, filter: SelectLocation): any;
@@ -133,12 +138,10 @@ export class Store {
   }
 
   selectInStateContext<T>(stateClass: any, selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T> {
-    // selectInContext(selector: string | any, filter: SelectLocation): Observable<any>;
-    // selectInContext(selector: any, filter: SelectLocation): Observable<any> {
     const locationPath = this._stateFactory.getLocationPath(filter, selector);
     const state = this._stateFactory.states.find(p => p.instance.constructor.name === stateClass.name);
     const selectorMData = getSelectorMetadata(selector);
-    const selectorMetadata = state.selectors[selectorMData.selectorName];
+    const selectorMetadata = state!.selectors[selectorMData.selectorName!];
 
     const selectorFn = getSelectorFunction(selectorMetadata, locationPath);
     return this._stateStream.pipe(
@@ -188,7 +191,7 @@ export class Store {
 
     const stateClasses = [];
     stateClasses.push(stateClass);
-    const { children } = stateClass[META_KEY];
+    const { children } = stateClass[META_KEY]!;
     const checkedChildren = (children || []).map(getChild);
 
     for (const child of checkedChildren) {
@@ -221,16 +224,18 @@ export class Store {
       }
     });
   }
-
+  /** 
+   * Removes state from Store with all of its children 
+   */
   removeState(stateClass: any) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const cur = stateOperations.getState();
     const checkedChildren = this.getChildren(stateClass);
     for (const child of checkedChildren) {
-      const { name } = child[META_KEY];
+      const { name } = child[META_KEY]!;
       const index = this._stateFactory.states.findIndex(p => p.name === name);
       const state = this._stateFactory.states.find(p => p.name === name);
-      if (this.isLastInstance(state)) {
+      if (this.isLastInstance(state!)) {
         if (onDestroyDefined(state)) {
           state.ngxsOnDestory();
         }
@@ -243,7 +248,9 @@ export class Store {
     stateOperations.setState({ ...cur });
     stateOperations.dispatch(new UpdateState()).subscribe(() => {});
   }
-
+  /** 
+   * Removes state from Store with all of its children in given location
+   */
   removeStateInLocation(location: SelectLocation) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const cur = stateOperations.getState();
@@ -258,13 +265,13 @@ export class Store {
       this._stateFactory.states.splice(index, 1);
     });
 
-    // const stateName = stateClass[META_KEY].name;
-    // delete cur[stateName];
-
     stateOperations.setState({ ...cur });
     stateOperations.dispatch(new UpdateState()).subscribe(() => {});
   }
 
+  /** 
+   * Checks if given state is last instance in Store
+   */
   private isLastInstance(state: MappedStore): boolean {
     const states = this._stateFactory.states.filter(p => p.instance === state.instance);
     if (states.length > 1) {
@@ -274,6 +281,9 @@ export class Store {
     }
   }
 
+  /**
+   * Adds child state in given location
+   */
   private addChildInternal(
     parent: string,
     parentType: string,
@@ -323,7 +333,7 @@ export class Store {
     const selectors: ObjectKeyMap<SelectorMetaDataModel> = child[META_KEY].selectors;
     const { defaults } = child[META_KEY];
 
-    const depth = parentMetaData.depth + '.' + childName;
+    const depth = parentMetaData!.depth + '.' + childName;
     child[META_KEY].path = depth;
     child[META_KEY].selectFromAppState = propGetter(depth.split('.'), this._config);
 
@@ -368,7 +378,7 @@ export class Store {
       stateOperations.setState(newState);
       const { children } = child[META_KEY];
       if (children) {
-        children.forEach((item, index) => {
+        children.forEach((item: any, index: number) => {
           if (inPath) {
             mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inPath));
           } else {
@@ -401,13 +411,16 @@ export class Store {
       childName = child[META_KEY].name;
     }
     const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, loc));
+    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName!, stateOperations, loc));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
     });
   }
 
+  /**
+   * Adds child state in given context
+   */
   addChildInContext(parent: any, filter: SelectLocation, child: any, childName?: string, parentName?: string) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const mappedStores: MappedStore[] = [];
@@ -433,43 +446,55 @@ export class Store {
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, filter));
+    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName!, stateOperations, filter));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
     });
   }
 
+  /**
+   * Adds child state in given State tree data path
+   */
   addChildInPath(child: any, location: SelectLocation, childName?: string) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const mappedStores: MappedStore[] = [];
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(...this.addChildInternal(location.path, parent.name, child, childName, stateOperations, location, true));
+    mappedStores.push(...this.addChildInternal(location.path, parent.name, child, childName!, stateOperations, location, true));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
     });
   }
 
+  /**
+   * Searches for state with given name added in root path and returns path to that state
+   */
   getStateInPath(root: SelectLocation, stateName: string): SelectLocation {
     const state = this._stateFactory.states.find(p => p.depth.startsWith(root.path) && p.name === stateName);
     if (state) {
       return SelectLocation.filterByPath(state.depth);
     }
-    return undefined;
+    return SelectLocation.filterByName('');
   }
 
+  /**
+   * Return state location based on name and parent path
+   */
   getState(root: SelectLocation, stateName: string): SelectLocation {
     const path = root.path + '.' + stateName;
     const state = this._stateFactory.states.find(p => p.depth === path);
     if (state) {
       return SelectLocation.filterByPath(state.depth);
     }
-    return undefined;
+    return SelectLocation.filterByName('');
   }
 
+  /**
+   * Removes State from State Data tree and MappedStores in given location with all its children
+   */
   removeStateInPath(location: SelectLocation) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const cur = stateOperations.getState();
@@ -491,6 +516,9 @@ export class Store {
     }
   }
 
+  /**
+   * Removes state by name with all its children
+   */
   removeChildByName(childName: string) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const cur = stateOperations.getState();
@@ -506,9 +534,6 @@ export class Store {
         const index = this._stateFactory.states.indexOf(innerChild);
         this._stateFactory.states.splice(index, 1);
       }
-      // const currentState = this._stateFactory.states.find(p => p.depth.startsWith(has.depth));
-      // const index = this._stateFactory.states.indexOf(has);
-      // this._stateFactory.states.splice(index, 1);
       const newState = this.clearValue(cur, has.depth);
       stateOperations.setState({ ...newState });
       stateOperations.dispatch(new UpdateState()).subscribe(() => {});
