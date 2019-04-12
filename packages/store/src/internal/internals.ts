@@ -1,29 +1,34 @@
-import { META_KEY, ActionOptions, SELECTOR_META_KEY, NgxsConfig } from '../symbols';
 import { Observable } from 'rxjs';
+
+import {
+  META_KEY,
+  META_OPTIONS_KEY,
+  NgxsConfig,
+  SELECTOR_META_KEY,
+  StoreOptions
+} from '../symbols';
+import { ActionHandlerMetaData } from '../actions/symbols';
 
 export interface ObjectKeyMap<T> {
   [key: string]: T;
 }
 
-export interface StateClassWithoutStaticMembers {}
-
 // inspired from https://stackoverflow.com/a/43674389
-export interface StateClass<T = StateClassWithoutStaticMembers> {
-  new (...args: any[]): T;
+export interface StateClass<T = any, U = any> {
   [META_KEY]?: MetaDataModel;
+  [META_OPTIONS_KEY]?: StoreOptions<U>;
+
+  new (...args: any[]): T;
 }
 
 export type StateKeyGraph = ObjectKeyMap<string[]>;
-
-export interface ActionHandlerMetaData {
-  fn: string | symbol;
-  options: ActionOptions;
-  type: string;
-}
+export type StatesByName = ObjectKeyMap<StateClass>;
 
 export interface StateOperations<T> {
   getState(): T;
+
   setState(val: T): T;
+
   dispatch(actions: any | any[]): Observable<void>;
 }
 
@@ -43,16 +48,21 @@ export interface MetaDataModel {
   selectsFromAppState: Map<StateLocation, SelectFromState>;
   children?: StateClass[];
   instance: any;
-  inheritedActions?: any[];
+  internalSelectorOptions?: InternalSelectorOptions;
 }
 
 export type SelectFromState = (state: any) => any;
+
+export interface InternalSelectorOptions {
+  injectContainerState?: boolean;
+}
 
 export interface SelectorMetaDataModel {
   selectFromAppState: SelectFromState | null;
   originalFn: Function | null;
   containerClass: any;
   selectorName: string | null;
+  selectorOptions: InternalSelectorOptions;
 }
 
 export interface MappedStore {
@@ -63,6 +73,11 @@ export interface MappedStore {
   depth: string;
   context: string;
   inheritedActions?: any[];
+}
+
+export interface StatesAndDefaults {
+  defaults: any;
+  states: MappedStore[];
 }
 
 /**
@@ -108,7 +123,10 @@ export function ensureSelectorMetadata(target: Function): SelectorMetaDataModel 
       selectFromAppState: null,
       originalFn: null,
       containerClass: null,
-      selectorName: null
+      selectorName: null,
+      selectorOptions: {
+        injectContainerState: true // TODO: default is true in v3, will change in v4
+      }
     };
 
     Object.defineProperty(target, SELECTOR_META_KEY, { value: defaultMetadata });
@@ -201,25 +219,22 @@ export function buildGraph(stateClasses: StateClass[]): StateKeyGraph {
   const findName = (stateClass: StateClass) => {
     const meta = stateClasses.find(g => g === stateClass);
     if (!meta) {
-      throw new Error(`Child state not found: ${stateClass}`);
-    }
-
-    if (!meta[META_KEY]) {
-      throw new Error('States must be decorated with @State() decorator');
+      throw new Error(
+        `Child state not found: ${stateClass}. \r\nYou may have forgotten to add states to module`
+      );
     }
 
     return meta[META_KEY]!.name!;
   };
 
-  return stateClasses.reduce<StateKeyGraph>((result: StateKeyGraph, stateClass: StateClass) => {
-    if (!stateClass[META_KEY]) {
-      throw new Error('States must be decorated with @State() decorator');
-    }
-
-    const { name, children } = stateClass[META_KEY]!;
-    result[name!] = (children || []).map(findName);
-    return result;
-  }, {});
+  return stateClasses.reduce<StateKeyGraph>(
+    (result: StateKeyGraph, stateClass: StateClass) => {
+      const { name, children } = stateClass[META_KEY]!;
+      result[name!] = (children || []).map(findName);
+      return result;
+    },
+    {}
+  );
 }
 
 /**
@@ -233,15 +248,14 @@ export function buildGraph(stateClasses: StateClass[]): StateKeyGraph {
  * @ignore
  */
 export function nameToState(states: StateClass[]): ObjectKeyMap<StateClass> {
-  return states.reduce<ObjectKeyMap<StateClass>>((result: ObjectKeyMap<StateClass>, stateClass: StateClass) => {
-    if (!stateClass[META_KEY]) {
-      throw new Error('States must be decorated with @State() decorator');
-    }
-
-    const meta = stateClass[META_KEY]!;
-    result[meta.name!] = stateClass;
-    return result;
-  }, {});
+  return states.reduce<ObjectKeyMap<StateClass>>(
+    (result: ObjectKeyMap<StateClass>, stateClass: StateClass) => {
+      const meta = stateClass[META_KEY]!;
+      result[meta.name!] = stateClass;
+      return result;
+    },
+    {}
+  );
 }
 
 /**
@@ -264,7 +278,10 @@ export function nameToState(states: StateClass[]): ObjectKeyMap<StateClass> {
  *
  * @ignore
  */
-export function findFullParentPath(obj: StateKeyGraph, newObj: ObjectKeyMap<string> = {}): ObjectKeyMap<string> {
+export function findFullParentPath(
+  obj: StateKeyGraph,
+  newObj: ObjectKeyMap<string> = {}
+): ObjectKeyMap<string> {
   const visit = (child: StateKeyGraph, keyToFind: string): string | null => {
     for (const key in child) {
       if (child.hasOwnProperty(key) && child[key].indexOf(keyToFind) >= 0) {
@@ -318,7 +335,9 @@ export function topologicalSort(graph: StateKeyGraph): string[] {
 
     graph[name].forEach((dep: string) => {
       if (ancestors.indexOf(dep) >= 0) {
-        throw new Error(`Circular dependency '${dep}' is required by '${name}': ${ancestors.join(' -> ')}`);
+        throw new Error(
+          `Circular dependency '${dep}' is required by '${name}': ${ancestors.join(' -> ')}`
+        );
       }
 
       if (visited[dep]) {
@@ -345,4 +364,17 @@ export function topologicalSort(graph: StateKeyGraph): string[] {
  */
 export function isObject(obj: any) {
   return (typeof obj === 'object' && obj !== null) || typeof obj === 'function';
+}
+
+const DOLLAR_CHAR_CODE = 36;
+
+/**
+ * If `foo$` => make it just `foo`
+ *
+ * @ignore
+ */
+export function removeDollarAtTheEnd(name: string): string {
+  const lastCharIndex = name.length - 1;
+  const dollarAtTheEnd = name.charCodeAt(lastCharIndex) === DOLLAR_CHAR_CODE;
+  return dollarAtTheEnd ? name.slice(0, lastCharIndex) : name;
 }

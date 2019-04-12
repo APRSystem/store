@@ -1,12 +1,77 @@
-# DEV version (to become [3.4.0](https://github.com/ngxs/store/milestone/6))
+# [DEV version](https://www.npmjs.com/package/@ngxs/store/v/dev) 
+### To become 3.4.4 or [3.5.0](https://github.com/ngxs/store/milestone/7)
 
+```bash
+$ npm install @ngxs/store@dev
+```
+
+* Fix: Logger Plugin - replace `Object.entries` as it breaks IE11 [#931](https://github.com/ngxs/store/pull/931)
+* Fix: Router Plugin - trigger navigation on the `QueryParams` change [#924](https://github.com/ngxs/store/pull/924)
+* Fix: Router-plugin - redirect to the manually entered route [#920](https://github.com/ngxs/store/pull/920)
+
+## NGXS-Labs
+
+### Immer-adapter v3.0.0
+
+* Feature: immutable state context decorator
+* Feature: immutable selector decorator
+* Deprecated: produce operator
+
+# 3.4.3 2019-03-14
+* Feature: Add state defaults to UpdateState [#956](https://github.com/ngxs/store/pull/956)
+* Fix: Router Plugin - serialize after Resolvers have run [#895](https://github.com/ngxs/store/pull/895)
+* Fix: HMR Plugin - incorrect destruction of modules in hmr [#908](https://github.com/ngxs/store/pull/908)
+* Fix: Logger Plugin - print action properties [#879](https://github.com/ngxs/store/pull/879)
+
+# 3.4.2 2019-03-07
+* Fix: Expose `ActionType, ActionOptions` interfaces [#873](https://github.com/ngxs/store/pull/873)
+* Fix: Router Plugin - add state selector with generic [#894](https://github.com/ngxs/store/pull/894)
+* Fix: Initial state should not be overwritten by defaults [#904](https://github.com/ngxs/store/pull/904)
+
+# 3.4.1 2019-03-04
+* Fix: createSelector does not allow for function returning a type unioned with `null` or `undefined` [#891](https://github.com/ngxs/store/pull/891)
+* Fix: Action is called multiple times when a module is called by multiple routes [#888](https://github.com/ngxs/store/pull/888)
+* Fix: Expose `removeItem` operator [#880](https://github.com/ngxs/store/pull/880)
+
+# 3.4.0 2019-02-28
 * Feature: Support server-side rendering [#698](https://github.com/ngxs/store/pull/698)
+* Feature: Enable state operator extensibility [#635](https://github.com/ngxs/store/pull/635)
+* Feature: Add `ofActionCompleted` action handler [#712](https://github.com/ngxs/store/pull/712)
+* Feature: Add `Hot Module Replacement` plugin for manage states [#707](https://github.com/ngxs/store/pull/707)
+* Feature: Add possible inheritance of state options [#750](https://github.com/ngxs/store/pull/750)
+* Feature: Add new lifecycle hook `ngxsAfterBootstrap` [#753](https://github.com/ngxs/store/pull/753)
+* Feature: Add ability to change the Execution strategy (decouple from zone.js) [#811](https://github.com/ngxs/store/pull/811)
+* Feature: Add state operators: `patch, updateItem, removeItem, insertItem, append, compose, iif` [#799](https://github.com/ngxs/store/pull/799/)
+* Feature: WebSocket Plugin - Add `WebSocketDisconnected` action to notify of disconnection [#825](https://github.com/ngxs/store/pull/825)
+* Feature: Defining the default state before module initialization [#791](https://github.com/ngxs/store/pull/791/files#diff-fc35f12bac15f5f65bad0f323be7ae12R46)
+* Fix: Expose `ActionCompletion` [#752](https://github.com/ngxs/store/pull/752)
+* Fix: Throw error when found duplicate state names [#791](https://github.com/ngxs/store/pull/791)
+* Fix: Bind static context to the selector function [#818](https://github.com/ngxs/store/pull/818)
+* Fix: WebSocket Plugin - `WebsocketMessageError` notifies of errors [#825](https://github.com/ngxs/store/pull/825)
+* Fix: Performance improved reading the name of the state from the parameter [#826](https://github.com/ngxs/store/pull/826)
+* Fix: Log group not closed on error [#831](https://github.com/ngxs/store/pull/831)
+* Fix: Websocket Plugin - server/network error triggered close should dispatch WebSocketDisconnected [#832](https://github.com/ngxs/store/pull/832)
+* Fix: Form Plugin - correct state synchronization with dirty flag [#862](https://github.com/ngxs/store/pull/862)
+* Fix: Remove typings introduced since 3.3.4 that are incompatible with TS 2.7 [#853](https://github.com/ngxs/store/pull/853)
+* Fix: Remove type usages introduced since 3.3.4 that are incompatible with NG 5 & TS 2.7 [#854](https://github.com/ngxs/store/pull/854)
+
+## NGXS-Labs
+
+### Emitter-plugin
+
+* Feature: Add `EmitterService` [#121](https://github.com/ngxs-labs/emitter/pull/121)
+* Feature: Add `StoreTestBedModule` for easy unit testing [#109](https://github.com/ngxs-labs/emitter/pull/109)
+
+# 3.3.4 2018-12-20
+* Fix: Remove ref to TestBed to reduce bundle size [#725](https://github.com/ngxs/store/pull/725)
+
+# 3.3.3 2018-12-16
+* Fix: Silence console hints in tests [#706](https://github.com/ngxs/store/pull/706)
 
 # 3.3.2 2018-12-04
 * Fix: Remove compromised dependencies [#684](https://github.com/ngxs/store/pull/684)
 * Fix: Add helper for enable development mode [#674](https://github.com/ngxs/store/pull/674)
 * Fix: Support underscore in state name [#663](https://github.com/ngxs/store/pull/663)
-
 
 # 3.3.1 2018-11-24
 * Fix: Storage Plugin should handle 'undefined' string [#671](https://github.com/ngxs/store/pull/671)

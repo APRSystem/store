@@ -1,6 +1,5 @@
 // tslint:disable:unified-signatures
-import { Injectable, Injector, NgZone } from '@angular/core';
-import * as cloneDeep from 'lodash/cloneDeep';
+import { Injectable, Type } from '@angular/core';
 import { Observable, of, Subscription } from 'rxjs';
 import { catchError, distinctUntilChanged, map, take } from 'rxjs/operators';
 import { isObject } from 'util';
@@ -19,21 +18,25 @@ import {
 import { StateFactory } from './internal/state-factory';
 import { InternalStateOperations } from './internal/state-operations';
 import { StateStream } from './internal/state-stream';
-import { enterZone } from './operators/zone';
-import { META_KEY, NgxsConfig } from './symbols';
-import { getSelectorFn } from './utils/selector-utils';
-import { setValue } from './utils/utils';
+import { NgxsConfig } from './symbols';
+import { InternalNgxsExecutionStrategy } from './execution/internal-ngxs-execution-strategy';
+import { leaveNgxs } from './operators/leave-ngxs';
+import { ObjectKeyMap } from './internal/internals';
 
 @Injectable()
 export class Store {
   constructor(
-    private _ngZone: NgZone,
     private _stateStream: StateStream,
     private _internalStateOperations: InternalStateOperations,
-    private _stateFactory: StateFactory,
-    private _injector: Injector,
-    private _config: NgxsConfig
-  ) {}
+    private _config: NgxsConfig,
+    private _internalExecutionStrategy: InternalNgxsExecutionStrategy
+  ) {
+    const value: ObjectKeyMap<any> = this._stateStream.value;
+    const storeIsEmpty: boolean = !value || Object.keys(value).length === 0;
+    if (storeIsEmpty) {
+      this._stateStream.next(this._config.defaultsState);
+    }
+  }
 
   /**
    * Dispatches event(s).
@@ -46,7 +49,7 @@ export class Store {
    * Selects a slice of data from the store.
    */
   select<T>(selector: (state: any, ...states: any[]) => T): Observable<T>;
-  select(selector: string | any): Observable<any>;
+  select<T = any>(selector: string | Type<any>): Observable<T>;
   select(selector: any): Observable<any> {
     const selectorFn = getSelectorFn(selector);
     return this._stateStream.pipe(
@@ -61,15 +64,16 @@ export class Store {
         throw err;
       }),
       distinctUntilChanged(),
-      enterZone(this._ngZone)
+      leaveNgxs(this._internalExecutionStrategy)
     );
   }
 
   /**
    * Select one slice of data from the store.
    */
+
   selectOnce<T>(selector: (state: any, ...states: any[]) => T): Observable<T>;
-  selectOnce(selector: string | any): Observable<any>;
+  selectOnce<T = any>(selector: string | Type<any>): Observable<T>;
   selectOnce(selector: any): Observable<any> {
     return this.select(selector).pipe(take(1));
   }
@@ -78,16 +82,22 @@ export class Store {
    * Select a snapshot from the state.
    */
   selectSnapshot<T>(selector: (state: any, ...states: any[]) => T): T;
-  selectSnapshot(selector: string | any): any;
+  selectSnapshot<T = any>(selector: string | Type<any>): T;
   selectSnapshot(selector: any): any {
     const selectorFn = getSelectorFn(selector);
     return selectorFn(this._stateStream.getValue());
   }
 
-  selectInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
+  selectInContext<T>(
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): Observable<T>;
   selectInContext(selector: string | any, filter: SelectLocation): Observable<any>;
   selectInContext(selector: any, filter: SelectLocation): Observable<any> {
-    const selectorFn = getSelectorFn(selector, this._stateFactory.getLocationPath(filter, selector));
+    const selectorFn = getSelectorFn(
+      selector,
+      this._stateFactory.getLocationPath(filter, selector)
+    );
     return this._stateStream.pipe(
       map(selectorFn),
       catchError(err => {
@@ -103,7 +113,10 @@ export class Store {
     );
   }
 
-  selectOnceInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
+  selectOnceInContext<T>(
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): Observable<T>;
   selectOnceInContext(selector: string | any, filter: SelectLocation): Observable<any>;
   selectOnceInContext(selector: any, filter: SelectLocation): Observable<any> {
     return this.selectInContext(selector, filter).pipe(take(1));
@@ -112,17 +125,23 @@ export class Store {
   /**
    * Select a snapshot from the state.
    */
-  selectSnapshotInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): T;
+  selectSnapshotInContext<T>(
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): T;
   selectSnapshotInContext(selector: string | any, filter: SelectLocation): any;
   selectSnapshotInContext(selector: any, filter: SelectLocation): any {
-    const selectorFn = getSelectorFn(selector, this._stateFactory.getLocationPath(filter, selector));
+    const selectorFn = getSelectorFn(
+      selector,
+      this._stateFactory.getLocationPath(filter, selector)
+    );
     return selectorFn(this._stateStream.getValue());
   }
   /**
    * Allow the user to subscribe to the root of the state
    */
   subscribe(fn?: (value: any) => void): Subscription {
-    return this._stateStream.pipe(enterZone(this._ngZone)).subscribe(fn);
+    return this._stateStream.pipe(leaveNgxs(this._internalExecutionStrategy)).subscribe(fn);
   }
 
   /**
@@ -225,7 +244,9 @@ export class Store {
           p => p.depth.startsWith(location.path) && p.instance.constructor.name === parentType
         );
       } else {
-        parentMetaData = this._stateFactory.states.find(p => p.name === parent && p.context === location.context);
+        parentMetaData = this._stateFactory.states.find(
+          p => p.name === parent && p.context === location.context
+        );
       }
     }
 
@@ -274,10 +295,28 @@ export class Store {
       if (children) {
         children.forEach((item, index) => {
           if (inPath) {
-            mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inPath));
+            mappedStores.push(
+              ...this.addChildInternal(
+                depth,
+                child.name,
+                item,
+                item[META_KEY].name,
+                stateOperations,
+                location,
+                inPath
+              )
+            );
           } else {
             mappedStores.push(
-              ...this.addChildInternal(childName, child.name, item, item[META_KEY].name, stateOperations, location, inPath)
+              ...this.addChildInternal(
+                childName,
+                child.name,
+                item,
+                item[META_KEY].name,
+                stateOperations,
+                location,
+                inPath
+              )
             );
           }
         });
@@ -305,14 +344,29 @@ export class Store {
       childName = child[META_KEY].name;
     }
     const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, loc));
+    mappedStores.push(
+      ...this.addChildInternal(
+        parentLocalName,
+        parent.name,
+        child,
+        childName,
+        stateOperations,
+        loc
+      )
+    );
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
     });
   }
 
-  addChildInContext(parent: any, filter: SelectLocation, child: any, childName?: string, parentName?: string) {
+  addChildInContext(
+    parent: any,
+    filter: SelectLocation,
+    child: any,
+    childName?: string,
+    parentName?: string
+  ) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const mappedStores: MappedStore[] = [];
     const parentMetaData = this._stateFactory.states.filter(
@@ -327,13 +381,24 @@ export class Store {
       } else if (parentMetaData.length === 0) {
         parentLocalName = parent[META_KEY].name;
       } else {
-        throw new Error('State class ' + parent.name + ' added more than once in context ' + filter.context);
+        throw new Error(
+          'State class ' + parent.name + ' added more than once in context ' + filter.context
+        );
       }
     }
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName, stateOperations, filter));
+    mappedStores.push(
+      ...this.addChildInternal(
+        parentLocalName,
+        parent.name,
+        child,
+        childName,
+        stateOperations,
+        filter
+      )
+    );
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
@@ -346,7 +411,17 @@ export class Store {
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(...this.addChildInternal(location.path, parent.name, child, childName, stateOperations, location, true));
+    mappedStores.push(
+      ...this.addChildInternal(
+        location.path,
+        parent.name,
+        child,
+        childName,
+        stateOperations,
+        location,
+        true
+      )
+    );
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       this._stateFactory.invokeInit(mappedStores);
@@ -358,7 +433,9 @@ export class Store {
     const cur = stateOperations.getState();
 
     const has = this._stateFactory.states.find(s => s.name === childName);
-    const checkedChildren = this._stateFactory.states.filter(p => p.depth.startsWith(has.depth + '.'));
+    const checkedChildren = this._stateFactory.states.filter(p =>
+      p.depth.startsWith(has.depth + '.')
+    );
     for (const innerChild of checkedChildren) {
       const index = this._stateFactory.states.indexOf(innerChild);
       this._stateFactory.states.splice(index, 1);

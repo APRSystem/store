@@ -25,8 +25,14 @@
         "lint": {
           "builder": "@angular-devkit/build-angular:tslint",
           "options": {
-            "tsConfig": ["tsconfig.lib.json", "tsconfig.spec.json"],
-            "exclude": ["**/node_modules/**"]
+            "tsConfig": [
+              "tsconfig.lib.json",
+              "tsconfig.spec.json"
+            ],
+            "exclude": [
+              "**/node_modules/**",
+              "./integrations/**"
+            ]
           }
         }
       }
@@ -46,6 +52,9 @@
             "polyfills": "./integration/polyfills.ts",
             "assets": [
               "./integration/favicon.ico"
+            ],
+            "styles": [
+              "./integration/styles.scss"
             ]
           },
           "configurations": {
@@ -141,8 +150,13 @@
         "lint": {
           "builder": "@angular-devkit/build-angular:tslint",
           "options": {
-            "tsConfig": ["integration/tsconfig.app.json", "integration/tsconfig.spec.json"],
-            "exclude": ["**/node_modules/**"]
+            "tsConfig": [
+              "integration/tsconfig.app.json",
+              "integration/tsconfig.spec.json"
+            ],
+            "exclude": [
+              "**/node_modules/**"
+            ]
           }
         }
       }

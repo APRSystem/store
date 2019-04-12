@@ -1,6 +1,9 @@
 import { Injectable, Inject } from '@angular/core';
 import { Subject } from 'rxjs';
-import { WebSocketSubject as RxWebSocketSubject, WebSocketSubjectConfig } from 'rxjs/webSocket';
+import {
+  WebSocketSubject as RxWebSocketSubject,
+  WebSocketSubjectConfig
+} from 'rxjs/webSocket';
 import { NGXS_WEBSOCKET_OPTIONS, NgxsWebsocketPluginOptions } from './symbols';
 
 /**
@@ -58,7 +61,11 @@ export class WebSocketSubject extends Subject<any> {
     }
 
     this._socket = new RxWebSocketSubject(this._internalConfig);
-    this._socket.subscribe((message: any) => this.next(message));
+    this._socket.subscribe(
+      (message: any) => this.next(message),
+      (error: any) => this.error(error),
+      () => this.complete()
+    );
   }
 
   /**
