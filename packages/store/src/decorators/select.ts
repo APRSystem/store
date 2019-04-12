@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 
 import { Store } from '../store';
-import { propGetter, removeDollarAtTheEnd } from '../internal/internals';
+import { propGetter } from '../internal/internals';
 import { META_KEY, NgxsConfig } from '../symbols';
 
 /**
@@ -26,7 +26,8 @@ export function Select(selectorOrFeature?: any, ...paths: string[]) {
     const selectorFnName = '__' + name + '__selector';
 
     if (!selectorOrFeature) {
-      selectorOrFeature = removeDollarAtTheEnd(name);
+      // if foo$ => make it just foo
+      selectorOrFeature = name.lastIndexOf('$') === name.length - 1 ? name.substring(0, name.length - 1) : name;
     }
 
     const createSelect = (fn: any) => {
@@ -42,9 +43,7 @@ export function Select(selectorOrFeature?: any, ...paths: string[]) {
     const createSelector = () => {
       const config = SelectFactory.config;
       if (typeof selectorOrFeature === 'string') {
-        const propsArray = paths.length
-          ? [selectorOrFeature, ...paths]
-          : selectorOrFeature.split('.');
+        const propsArray = paths.length ? [selectorOrFeature, ...paths] : selectorOrFeature.split('.');
 
         return propGetter(propsArray, config!);
       } else if (selectorOrFeature[META_KEY] && selectorOrFeature[META_KEY].path) {
@@ -55,9 +54,7 @@ export function Select(selectorOrFeature?: any, ...paths: string[]) {
     };
 
     if (target[selectorFnName]) {
-      throw new Error(
-        'You cannot use @Select decorator and a ' + selectorFnName + ' property.'
-      );
+      throw new Error('You cannot use @Select decorator and a ' + selectorFnName + ' property.');
     }
 
     if (delete target[name]) {
@@ -69,10 +66,7 @@ export function Select(selectorOrFeature?: any, ...paths: string[]) {
 
       Object.defineProperty(target, name, {
         get: function() {
-          return (
-            this[selectorFnName] ||
-            (this[selectorFnName] = createSelect.apply(this, [createSelector()]))
-          );
+          return this[selectorFnName] || (this[selectorFnName] = createSelect.apply(this, [createSelector()]));
         },
         enumerable: true,
         configurable: true

@@ -7,7 +7,7 @@ import { NgxsPluginFn, NGXS_PLUGINS, NgxsPlugin } from './symbols';
  */
 @Injectable()
 export class PluginManager {
-  public plugins: NgxsPluginFn[] = [];
+  plugins: NgxsPluginFn[] = [];
 
   constructor(
     @Optional()
@@ -15,26 +15,26 @@ export class PluginManager {
     private _parentManager: PluginManager,
     @Inject(NGXS_PLUGINS)
     @Optional()
-    private _pluginHandlers: NgxsPlugin[]
+    private _plugins: NgxsPlugin[]
   ) {
-    this.registerHandlers();
+    this.register();
   }
 
-  private registerHandlers(): void {
-    this.plugins = this.getPlugins();
-    this.registerPluginInManager(this.plugins);
-  }
-
-  private registerPluginInManager(plugins: NgxsPluginFn[]): void {
-    if (this._parentManager) {
-      this._parentManager.plugins.push(...plugins);
+  private register() {
+    if (!this._plugins) {
+      return;
     }
-  }
 
-  private getPlugins(): NgxsPluginFn[] {
-    const handlers: NgxsPlugin[] = this._pluginHandlers || [];
-    return handlers.map((plugin: NgxsPlugin) =>
-      plugin.handle ? plugin.handle.bind(plugin) : plugin
-    );
+    this.plugins = this._plugins.map(plugin => {
+      if (plugin.handle) {
+        return plugin.handle.bind(plugin);
+      } else {
+        return plugin;
+      }
+    });
+
+    if (this._parentManager) {
+      this._parentManager.plugins.push(...this.plugins);
+    }
   }
 }

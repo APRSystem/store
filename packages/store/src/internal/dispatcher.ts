@@ -1,4 +1,5 @@
-import { Injectable, ErrorHandler } from '@angular/core';
+import { Injectable, ErrorHandler, NgZone, Inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformServer } from '@angular/common';
 import { Observable, of, forkJoin, empty, Subject, throwError } from 'rxjs';
 import { shareReplay, filter, exhaustMap, take } from 'rxjs/operators';
 
@@ -6,9 +7,7 @@ import { compose } from '../utils/compose';
 import { InternalActions, ActionStatus, ActionContext } from '../actions-stream';
 import { StateStream } from './state-stream';
 import { PluginManager } from '../plugin-manager';
-import { NgxsConfig } from '../symbols';
-import { InternalNgxsExecutionStrategy } from '../execution/internal-ngxs-execution-strategy';
-import { leaveNgxs } from '../operators/leave-ngxs';
+import { enterZone } from '../operators/zone';
 
 /**
  * Internal Action result stream that is emitted when an action is completed.
@@ -27,23 +26,34 @@ export class InternalDispatcher {
     private _actionResults: InternalDispatchedActionResults,
     private _pluginManager: PluginManager,
     private _stateStream: StateStream,
-    private _ngxsExecutionStrategy: InternalNgxsExecutionStrategy
+    private _ngZone: NgZone,
+    @Inject(PLATFORM_ID) private _platformId: Object
   ) {}
 
   /**
    * Dispatches event(s).
    */
   dispatch(actionOrActions: any | any[]): Observable<any> {
-    const result = this._ngxsExecutionStrategy.enter(() =>
-      this.dispatchByEvents(actionOrActions)
-    );
+    let result: Observable<any>;
+    if (isPlatformServer(this._platformId)) {
+      result = this._ngZone.run(() => {
+        return this.dispatchByEvents(actionOrActions);
+      });
+    } else {
+      result = this._ngZone.runOutsideAngular(() => {
+        return this.dispatchByEvents(actionOrActions);
+      });
+    }
 
     result.subscribe({
-      error: error =>
-        this._ngxsExecutionStrategy.leave(() => this._errorHandler.handleError(error))
+      error: error => this._ngZone.run(() => this._errorHandler.handleError(error))
     });
 
-    return result.pipe(leaveNgxs(this._ngxsExecutionStrategy));
+    if (isPlatformServer(this._platformId)) {
+      return result.pipe();
+    } else {
+      return result.pipe(enterZone(this._ngZone));
+    }
   }
 
   private dispatchByEvents(actionOrActions: any | any[]): Observable<any> {
@@ -74,9 +84,7 @@ export class InternalDispatcher {
 
   private getActionResultStream(action: any): Observable<ActionContext> {
     return this._actionResults.pipe(
-      filter(
-        (ctx: ActionContext) => ctx.action === action && ctx.status !== ActionStatus.Dispatched
-      ),
+      filter((ctx: ActionContext) => ctx.action === action && ctx.status !== ActionStatus.Dispatched),
       take(1),
       shareReplay()
     );

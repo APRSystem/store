@@ -5,7 +5,6 @@ import { Store } from '../src/store';
 import { NgxsModule } from '../src/module';
 import { State } from '../src/decorators/state';
 import { Action } from '../src/decorators/action';
-import { StateContext } from '../src/symbols';
 
 describe('Store', () => {
   interface SubSubStateModel {
@@ -22,10 +21,6 @@ describe('Store', () => {
     first: string;
     second: string;
     bar?: SubStateModel;
-  }
-
-  interface OtherStateModel {
-    under: string;
   }
 
   class FooIt {
@@ -60,9 +55,9 @@ describe('Store', () => {
   })
   class MyState {
     @Action(FooIt)
-    fooIt({ setState }: StateContext<StateModel>) {
+    fooIt({ setState }) {
       return new Observable(observer => {
-        setState({ foo: 'bar' } as any);
+        setState({ foo: 'bar' });
 
         observer.next();
         observer.complete();
@@ -70,26 +65,18 @@ describe('Store', () => {
     }
   }
 
-  @State<OtherStateModel>({
-    name: 'under_',
-    defaults: {
-      under: 'score'
-    }
-  })
-  class MyOtherState {}
-
   let store: Store;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [NgxsModule.forRoot([MySubState, MySubSubState, MyState, MyOtherState])]
+      imports: [NgxsModule.forRoot([MySubState, MySubSubState, MyState])]
     });
 
     store = TestBed.get(Store);
   });
 
   it('should subscribe to the root state', async(() => {
-    store.subscribe((state: any) => {
+    store.subscribe(state => {
       expect(state).toEqual({
         foo: {
           first: 'Hello',
@@ -101,20 +88,15 @@ describe('Store', () => {
               name: 'Danny'
             }
           }
-        },
-        under_: {
-          under: 'score'
         }
       });
     });
   }));
 
   it('should select the correct state use a function', async(() => {
-    store
-      .select((state: { foo: StateModel }) => state.foo.first)
-      .subscribe(state => {
-        expect(state).toBe('Hello');
-      });
+    store.select((state: { foo: StateModel }) => state.foo.first).subscribe(state => {
+      expect(state).toBe('Hello');
+    });
   }));
 
   it('should select the correct state use a state class: Root State', async(() => {
@@ -134,8 +116,7 @@ describe('Store', () => {
   }));
 
   it('should select the correct state use a state class: Sub State', async(() => {
-    // todo: remove any
-    store.select<SubStateModel>(<any>MySubState).subscribe((state: SubStateModel) => {
+    store.select(MySubState).subscribe((state: SubStateModel) => {
       expect(state).toEqual({
         hello: true,
         world: true,
@@ -147,8 +128,7 @@ describe('Store', () => {
   }));
 
   it('should select the correct state use a state class: Sub Sub State', async(() => {
-    // todo: remove any
-    store.select<SubSubStateModel>(<any>MySubSubState).subscribe((state: SubSubStateModel) => {
+    store.select(MySubSubState).subscribe((state: SubSubStateModel) => {
       expect(state).toEqual({
         name: 'Danny'
       });
@@ -167,13 +147,6 @@ describe('Store', () => {
           name: 'Danny'
         }
       }
-    });
-  }));
-
-  it('should select state with an underscore in name', async(() => {
-    const state = store.selectSnapshot(MyOtherState);
-    expect(state).toEqual({
-      under: 'score'
     });
   }));
 

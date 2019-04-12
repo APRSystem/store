@@ -21,10 +21,7 @@ describe('Lazy Loading', () => {
     @Select(TodoState) todos: Observable<string[]>;
   }
   @NgModule({
-    imports: [
-      RouterModule.forChild([{ path: '', component: MyLazyComponent }]),
-      NgxsModule.forFeature([TodoState])
-    ],
+    imports: [RouterModule.forChild([{ path: '', component: MyLazyComponent }]), NgxsModule.forFeature([TodoState])],
     declarations: [MyLazyComponent]
   })
   class MyLazyModule {}
@@ -44,16 +41,11 @@ describe('Lazy Loading', () => {
 
   let router: Router;
 
-  const navigate = () =>
-    router.navigateByUrl('/todos').then(() => router.navigateByUrl('/simple'));
+  const navigate = () => router.navigateByUrl('/todos').then(() => router.navigateByUrl('/simple'));
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [
-        RouterTestingModule,
-        NgxsModule.forRoot([]),
-        NgxsModule.forFeature([CounterState])
-      ],
+      imports: [RouterTestingModule, NgxsModule.forRoot([]), NgxsModule.forFeature([CounterState])],
       declarations: [MyComponent],
       providers: [MathService]
     });
@@ -114,12 +106,7 @@ describe('Lazy Loading', () => {
         expect(res).toBe('TEST');
       });
 
-      store.dispatch([
-        new Increment(),
-        new AddTodo('Hello World'),
-        new UpdateValue('TEST'),
-        new Increment()
-      ]);
+      store.dispatch([new Increment(), new AddTodo('Hello World'), new UpdateValue('TEST'), new Increment()]);
     });
   });
 });

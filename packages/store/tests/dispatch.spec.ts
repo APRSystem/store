@@ -20,7 +20,7 @@ describe('Dispatch', () => {
   }
 
   it('should throw error', async(() => {
-    const observedCalls: string[] = [];
+    const observedCalls = [];
 
     @State<number>({
       name: 'counter',
@@ -52,9 +52,7 @@ describe('Dispatch', () => {
 
     const store: Store = TestBed.get(Store);
 
-    store
-      .dispatch(new Increment())
-      .subscribe(() => {}, err => observedCalls.push('observer.error(...)'));
+    store.dispatch(new Increment()).subscribe(() => {}, err => observedCalls.push('observer.error(...)'));
 
     expect(observedCalls).toEqual(['handleError(...)', 'observer.error(...)']);
   }));
@@ -185,13 +183,7 @@ describe('Dispatch', () => {
     store.dispatch(new Increment());
 
     store
-      .dispatch([
-        new Increment(),
-        new Increment(),
-        new Increment(),
-        new Increment(),
-        new Decrement()
-      ])
+      .dispatch([new Increment(), new Increment(), new Increment(), new Increment(), new Decrement()])
       .subscribe(() => {
         store.select(MyState).subscribe(res => {
           expect(res).toBe(5);
@@ -380,9 +372,7 @@ describe('Dispatch', () => {
         class MyState {
           @Action(Increment)
           increment({ getState, setState, dispatch }: StateContext<number>) {
-            return new Promise<void>(resolve => setTimeout(resolve, 1)).then(
-              () => actionsHandled++
-            );
+            return new Promise<void>(resolve => setTimeout(resolve, 1)).then(() => actionsHandled++);
           }
         }
 
@@ -407,16 +397,12 @@ describe('Dispatch', () => {
         class MyState {
           @Action(Increment)
           async increment({ getState, setState, dispatch }: StateContext<number>) {
-            return new Promise<void>(resolve => setTimeout(resolve, 1)).then(
-              () => actionsHandled++
-            );
+            return new Promise<void>(resolve => setTimeout(resolve, 1)).then(() => actionsHandled++);
           }
 
           @Action(Increment)
           incrementAgain({ getState, setState, dispatch }: StateContext<number>) {
-            return new Promise<void>(resolve => setTimeout(resolve, 2)).then(
-              () => actionsHandled++
-            );
+            return new Promise<void>(resolve => setTimeout(resolve, 2)).then(() => actionsHandled++);
           }
         }
 
@@ -443,10 +429,7 @@ describe('Dispatch', () => {
         class MyState {
           @Action(Increment)
           increment({ getState, setState, dispatch }: StateContext<number>) {
-            return of({}).pipe(
-              delay(1),
-              tap(() => actionsHandled++)
-            );
+            return of({}).pipe(delay(1), tap(() => actionsHandled++));
           }
         }
 
@@ -471,18 +454,12 @@ describe('Dispatch', () => {
         class MyState {
           @Action(Increment)
           increment({ getState, setState, dispatch }: StateContext<number>) {
-            return of({}).pipe(
-              delay(1),
-              tap(() => actionsHandled++)
-            );
+            return of({}).pipe(delay(1), tap(() => actionsHandled++));
           }
 
           @Action(Increment)
           incrementAgain({ getState, setState, dispatch }: StateContext<number>) {
-            return of({}).pipe(
-              delay(2),
-              tap(() => actionsHandled++)
-            );
+            return of({}).pipe(delay(2), tap(() => actionsHandled++));
           }
         }
 
@@ -514,17 +491,12 @@ describe('Dispatch', () => {
 
           @Action(Increment)
           incrementAsync({ getState, setState, dispatch }: StateContext<number>) {
-            return new Promise<void>(resolve => setTimeout(resolve, 1)).then(
-              () => actionsHandled++
-            );
+            return new Promise<void>(resolve => setTimeout(resolve, 1)).then(() => actionsHandled++);
           }
 
           @Action(Increment)
           incrementObservable({ getState, setState, dispatch }: StateContext<number>) {
-            return of({}).pipe(
-              delay(2),
-              tap(() => actionsHandled++)
-            );
+            return of({}).pipe(delay(2), tap(() => actionsHandled++));
           }
         }
 
@@ -589,85 +561,87 @@ describe('Dispatch', () => {
     });
 
     describe('when the action is canceled by a subsequent action', () => {
-      it('should not trigger observer, but should complete observable stream', fakeAsync(() => {
-        const resolvers: (() => void)[] = [];
+      it(
+        'should not trigger observer, but should complete observable stream',
+        fakeAsync(() => {
+          const resolvers: (() => void)[] = [];
 
-        @State<number>({
-          name: 'counter',
-          defaults: 0
-        })
-        class MyState {
-          @Action(Increment, { cancelUncompleted: true })
-          increment({ getState, setState, dispatch }: StateContext<number>) {
-            return new Promise<void>(resolve => resolvers.push(resolve));
+          @State<number>({
+            name: 'counter',
+            defaults: 0
+          })
+          class MyState {
+            @Action(Increment, { cancelUncompleted: true })
+            increment({ getState, setState, dispatch }: StateContext<number>) {
+              return new Promise<void>(resolve => resolvers.push(resolve));
+            }
           }
-        }
 
-        TestBed.configureTestingModule({
-          imports: [NgxsModule.forRoot([MyState])]
-        });
+          TestBed.configureTestingModule({
+            imports: [NgxsModule.forRoot([MyState])]
+          });
 
-        const store: Store = TestBed.get(Store);
+          const store: Store = TestBed.get(Store);
 
-        const subscriptionsCalled: string[] = [];
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('previous'),
-            () => subscriptionsCalled.push('previous error'),
-            () => subscriptionsCalled.push('previous complete')
-          );
-        store.dispatch(new Increment());
-        resolvers[0]();
-        resolvers[1]();
-        tick(0);
-        expect(subscriptionsCalled).toEqual(['previous complete']);
-      }));
-
-      it('should trigger next and completion for latest but only completion for previous', fakeAsync(() => {
-        const resolvers: (() => void)[] = [];
-
-        @State<number>({
-          name: 'counter',
-          defaults: 0
+          const subscriptionsCalled: string[] = [];
+          store
+            .dispatch(new Increment())
+            .subscribe(
+              () => subscriptionsCalled.push('previous'),
+              () => subscriptionsCalled.push('previous error'),
+              () => subscriptionsCalled.push('previous complete')
+            );
+          store.dispatch(new Increment());
+          resolvers[0]();
+          resolvers[1]();
+          tick(0);
+          expect(subscriptionsCalled).toEqual(['previous complete']);
         })
-        class MyState {
-          @Action(Increment, { cancelUncompleted: true })
-          increment({ getState, setState, dispatch }: StateContext<number>) {
-            return new Promise<void>(resolve => resolvers.push(resolve));
+      );
+
+      it(
+        'should trigger next and completion for latest but only completion for previous',
+        fakeAsync(() => {
+          const resolvers: (() => void)[] = [];
+
+          @State<number>({
+            name: 'counter',
+            defaults: 0
+          })
+          class MyState {
+            @Action(Increment, { cancelUncompleted: true })
+            increment({ getState, setState, dispatch }: StateContext<number>) {
+              return new Promise<void>(resolve => resolvers.push(resolve));
+            }
           }
-        }
 
-        TestBed.configureTestingModule({
-          imports: [NgxsModule.forRoot([MyState])]
-        });
+          TestBed.configureTestingModule({
+            imports: [NgxsModule.forRoot([MyState])]
+          });
 
-        const store: Store = TestBed.get(Store);
+          const store: Store = TestBed.get(Store);
 
-        const subscriptionsCalled: string[] = [];
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('previous'),
-            () => subscriptionsCalled.push('previous error'),
-            () => subscriptionsCalled.push('previous complete')
-          );
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('latest'),
-            () => subscriptionsCalled.push('latest error'),
-            () => subscriptionsCalled.push('latest complete')
-          );
-        resolvers[0]();
-        resolvers[1]();
-        tick(0);
-        expect(subscriptionsCalled).toEqual([
-          'previous complete',
-          'latest',
-          'latest complete'
-        ]);
-      }));
+          const subscriptionsCalled: string[] = [];
+          store
+            .dispatch(new Increment())
+            .subscribe(
+              () => subscriptionsCalled.push('previous'),
+              () => subscriptionsCalled.push('previous error'),
+              () => subscriptionsCalled.push('previous complete')
+            );
+          store
+            .dispatch(new Increment())
+            .subscribe(
+              () => subscriptionsCalled.push('latest'),
+              () => subscriptionsCalled.push('latest error'),
+              () => subscriptionsCalled.push('latest complete')
+            );
+          resolvers[0]();
+          resolvers[1]();
+          tick(0);
+          expect(subscriptionsCalled).toEqual(['previous complete', 'latest', 'latest complete']);
+        })
+      );
     });
 
     describe('when the action returns an observable error', () => {
@@ -748,10 +722,7 @@ describe('Dispatch', () => {
         class MyState {
           @Action(Append)
           append({ getState, setState }: StateContext<string>, { payload }: Append) {
-            return of({}).pipe(
-              delay(payload.length * 10),
-              tap(() => setState(getState() + payload))
-            );
+            return of({}).pipe(delay(payload.length * 10), tap(() => setState(getState() + payload)));
           }
         }
 
@@ -761,13 +732,9 @@ describe('Dispatch', () => {
 
         const store: Store = TestBed.get(Store);
 
-        store
-          .dispatch(new Append('dddd'))
-          .subscribe(state => expect(state.text).toEqual('abbcccdddd'));
+        store.dispatch(new Append('dddd')).subscribe(state => expect(state.text).toEqual('abbcccdddd'));
         store.dispatch(new Append('a')).subscribe(state => expect(state.text).toEqual('a'));
-        store
-          .dispatch(new Append('ccc'))
-          .subscribe(state => expect(state.text).toEqual('abbccc'));
+        store.dispatch(new Append('ccc')).subscribe(state => expect(state.text).toEqual('abbccc'));
         store.dispatch(new Append('bb')).subscribe(state => expect(state.text).toEqual('abb'));
       }));
     });
@@ -786,10 +753,7 @@ describe('Dispatch', () => {
         class MyState {
           @Action(Append)
           append({ getState, setState }: StateContext<string>, { payload }: Append) {
-            return of({}).pipe(
-              delay(payload.length * 10),
-              tap(() => setState(getState() + payload))
-            );
+            return of({}).pipe(delay(payload.length * 10), tap(() => setState(getState() + payload)));
           }
         }
 
@@ -802,12 +766,7 @@ describe('Dispatch', () => {
         store
           .dispatch([new Append('dddd'), new Append('a'), new Append('ccc'), new Append('bb')])
           .subscribe(results => {
-            expect(results.map((r: any) => r.text)).toEqual([
-              'abbcccdddd',
-              'a',
-              'abbccc',
-              'abb'
-            ]);
+            expect(results.map(r => r.text)).toEqual(['abbcccdddd', 'a', 'abbccc', 'abb']);
           });
       }));
     });

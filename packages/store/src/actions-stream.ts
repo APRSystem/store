@@ -1,8 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
-import { InternalNgxsExecutionStrategy } from './execution/internal-ngxs-execution-strategy';
-import { leaveNgxs } from './operators/leave-ngxs';
+import { enterZone } from './operators/zone';
 
 /**
  * Status of a dispatched action
@@ -14,9 +13,9 @@ export const enum ActionStatus {
   Errored = 'ERRORED'
 }
 
-export interface ActionContext<T = any> {
+export interface ActionContext {
   status: ActionStatus;
-  action: T;
+  action: any;
   error?: Error;
 }
 
@@ -67,18 +66,11 @@ export class InternalActions extends OrderedSubject<ActionContext> {}
  */
 @Injectable()
 export class Actions extends Observable<any> {
-  constructor(
-    actions$: InternalActions,
-    internalExecutionStrategy: InternalNgxsExecutionStrategy
-  ) {
+  constructor(actions$: InternalActions, ngZone: NgZone) {
     super(observer => {
       actions$
-        .pipe(leaveNgxs(internalExecutionStrategy))
-        .subscribe(
-          res => observer.next(res),
-          err => observer.error(err),
-          () => observer.complete()
-        );
+        .pipe(enterZone(ngZone))
+        .subscribe(res => observer.next(res), err => observer.error(err), () => observer.complete());
     });
   }
 }
