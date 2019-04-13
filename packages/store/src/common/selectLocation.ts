@@ -3,12 +3,7 @@
  * It allows to add one State class multiple times in Stata Data tree with different paths
  */
 export class SelectLocation {
-  constructor(
-    public context: string,
-    public name: string,
-    public path: string,
-    public searchInTree: boolean
-  ) {}
+  constructor(public context: string, public name: string, public path: string, public searchInTree: boolean) {}
 
   static filterByName(name: string): SelectLocation {
     return new SelectLocation('', name, '', false);

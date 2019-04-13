@@ -9,20 +9,27 @@ export function Selector(selectors?: any[]) {
     if (descriptor.value !== null) {
       const originalFn = descriptor.value;
 
-      const memoizedFn = createSelector(
+      let memoizedFn = createSelector(
         selectors,
-        originalFn,
+        originalFn.bind(target),
         { containerClass: target, selectorName: methodName }
       );
-
       const meta = ensureStoreMetadata(target);
       const selectorMetaData = ensureSelectorMetadata(memoizedFn);
-      if (!meta.selectors[selectorMetaData.selectorName]) {
-        meta.selectors[selectorMetaData.selectorName] = selectorMetaData;
+      if (!meta.selectors[selectorMetaData.selectorName!]) {
+        meta.selectors[selectorMetaData.selectorName!] = selectorMetaData;
       }
       return {
         configurable: true,
         get() {
+          // Selector initialisation defered to here so that it is at runtime, not decorator parse time
+          memoizedFn =
+            memoizedFn ||
+            createSelector(
+              selectors,
+              originalFn.bind(target),
+              { containerClass: target, selectorName: methodName }
+            );
           return memoizedFn;
         }
       };

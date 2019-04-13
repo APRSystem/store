@@ -1,12 +1,14 @@
+import { memoize } from '@ngxs/store/internals';
+
 import {
+  SelectFromState,
   ensureSelectorMetadata,
-  fastPropGetter,
   getSelectorMetadata,
   getStoreMetadata,
-  SelectFromState,
-  SelectorMetaDataModel
+  SelectorMetaDataModel,
+  InternalSelectorOptions,
+  fastPropGetter
 } from '../internal/internals';
-import { memoize } from '../utils/memoize';
 import { SELECTOR_META_KEY } from '../symbols';
 
 /**
@@ -15,7 +17,7 @@ import { SELECTOR_META_KEY } from '../symbols';
  * @param originalFn The original function being made into a selector
  * @param creationMetadata
  */
-export function createSelector<T extends (...args: any[]) => R, R>(
+export function createSelector<T extends (...args: any[]) => any>(
   selectors: any[] | undefined,
   originalFn: T,
   creationMetadata?: { containerClass: any; selectorName: string }
@@ -29,24 +31,20 @@ export function createSelector<T extends (...args: any[]) => R, R>(
     return returnValue;
   } as T;
   const memoizedFn = memoize(wrappedFn);
-  const containerClass = creationMetadata && creationMetadata.containerClass;
+  const selectorMetaData = ensureSelectorMetadata(memoizedFn);
+  selectorMetaData.originalFn = originalFn;
+
+  if (creationMetadata) {
+    selectorMetaData.containerClass = creationMetadata.containerClass;
+    selectorMetaData.selectorName = creationMetadata.selectorName;
+  }
+
+  selectorMetaData.selectorOptions = getCustomSelectorOptions(selectorMetaData, {});
 
   const fn = (state: any) => {
     const results = [];
 
-    const selectorsToApply = [];
-
-    if (containerClass) {
-      // If we are on a state class, add it as the first selector parameter
-      const metadata = getStoreMetadata(containerClass);
-      if (metadata) {
-        selectorsToApply.push(containerClass);
-      }
-    }
-
-    if (selectors) {
-      selectorsToApply.push(...selectors);
-    }
+    const selectorsToApply = getSelectorsToApply(selectorMetaData, selectors);
 
     // Determine arguments from the app state using the selectors
     results.push(...selectorsToApply.map(a => getSelectorFn(a)(state)));
@@ -64,14 +62,46 @@ export function createSelector<T extends (...args: any[]) => R, R>(
     }
   };
 
-  const selectorMetaData = ensureSelectorMetadata(memoizedFn);
-  selectorMetaData.originalFn = originalFn;
   selectorMetaData.selectFromAppState = fn;
-  if (creationMetadata) {
-    selectorMetaData.containerClass = creationMetadata.containerClass;
-    selectorMetaData.selectorName = creationMetadata.selectorName;
-  }
+
   return memoizedFn;
+}
+
+function getCustomSelectorOptions(
+  selectorMetaData: SelectorMetaDataModel,
+  explicitOptions: InternalSelectorOptions
+) {
+  let selectorOptions = selectorMetaData.selectorOptions || {};
+  const containerClass = selectorMetaData.containerClass;
+  if (containerClass) {
+    const storeMetaData = getStoreMetadata(containerClass);
+    const classSelectorOptions: InternalSelectorOptions =
+      (storeMetaData && storeMetaData.internalSelectorOptions) || {};
+    selectorOptions = { ...selectorOptions, ...classSelectorOptions };
+  }
+  selectorOptions = { ...selectorOptions, ...explicitOptions };
+  return selectorOptions;
+}
+
+function getSelectorsToApply(
+  selectorMetaData: SelectorMetaDataModel,
+  selectors: any[] | undefined = []
+) {
+  const selectorsToApply = [];
+  const canInjectContainerState =
+    selectors.length === 0 || selectorMetaData.selectorOptions.injectContainerState;
+  const containerClass = selectorMetaData.containerClass;
+  if (containerClass && canInjectContainerState) {
+    // If we are on a state class, add it as the first selector parameter
+    const metadata = getStoreMetadata(containerClass);
+    if (metadata) {
+      selectorsToApply.push(containerClass);
+    }
+  }
+  if (selectors) {
+    selectorsToApply.push(...selectors);
+  }
+  return selectorsToApply;
 }
 
 /**
@@ -88,8 +118,11 @@ export function getSelectorFn(selector: any, path?: String): SelectFromState {
   return (metadata && metadata.selectFromAppState) || selector;
 }
 
-export function getSelectorFunction(selectorMd: SelectorMetaDataModel, path: string): SelectFromState {
+export function getSelectorFunction(
+  selectorMd: SelectorMetaDataModel,
+  path: string
+): SelectFromState {
   return (state: any) => {
-    return selectorMd.originalFn(fastPropGetter(path.split('.'))(state));
+    return selectorMd.originalFn!(fastPropGetter(path.split('.'))(state));
   };
 }

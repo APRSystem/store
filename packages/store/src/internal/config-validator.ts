@@ -1,7 +1,7 @@
 import { Injectable, isDevMode } from '@angular/core';
-import { isAngularInTestMode } from '@ngxs/store/internals';
 
 import { NgxsConfig } from '../symbols';
+import { isAngularInTestMode } from '@ngxs/store/internals';
 
 @Injectable()
 export class ConfigValidator {

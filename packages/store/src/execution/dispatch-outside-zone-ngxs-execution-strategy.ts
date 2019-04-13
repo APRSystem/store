@@ -1,12 +1,5 @@
-import {
-  NgZone,
-  PLATFORM_ID,
-  Injectable,
-  ɵNoopNgZone as NoopNgZone,
-  Inject
-} from '@angular/core';
 import { isPlatformServer } from '@angular/common';
-
+import { Inject, Injectable, NgZone, PLATFORM_ID } from '@angular/core';
 import { NgxsExecutionStrategy } from './symbols';
 
 @Injectable()
