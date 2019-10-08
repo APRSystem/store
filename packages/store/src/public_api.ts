@@ -2,7 +2,8 @@ export { NgxsModule } from './module';
 export { Action } from './decorators/action';
 export { Store } from './store';
 export { State } from './decorators/state';
-export { Select } from './decorators/select';
+export { Select } from './decorators/select/select';
+export { SelectorOptions } from './decorators/selector-options';
 export { Actions } from './actions-stream';
 export { NgxsAction } from './actions/base.action';
 export { SelectLocation } from './common/selectLocation';
@@ -23,7 +24,13 @@ export {
   ofActionCompleted,
   ActionCompletion
 } from './operators/of-action';
-export { StateContext, StateOperator, NgxsOnInit, NgxsAfterBootstrap } from './symbols';
+export {
+  StateContext,
+  StateOperator,
+  NgxsOnInit,
+  NgxsAfterBootstrap,
+  NgxsModuleOptions
+} from './symbols';
 export { Selector } from './decorators/selector';
 export { getActionTypeFromInstance, actionMatcher } from './utils/utils';
 export { createSelector } from './utils/selector-utils';

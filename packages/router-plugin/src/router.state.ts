@@ -6,10 +6,10 @@ import {
   RouterStateSnapshot,
   RoutesRecognized,
   ResolveEnd,
-  NavigationEnd,
-  GuardsCheckEnd
+  GuardsCheckEnd,
+  UrlSerializer
 } from '@angular/router';
-import { Location } from '@angular/common';
+import { LocationStrategy, Location } from '@angular/common';
 import { Action, Selector, State, StateContext, Store } from '@ngxs/store';
 import { isAngularInTestMode } from '@ngxs/store/internals';
 import { filter, take } from 'rxjs/operators';
@@ -19,14 +19,15 @@ import {
   RouterAction,
   RouterCancel,
   RouterError,
-  RouterNavigation
+  RouterNavigation,
+  RouterDataResolved
 } from './router.actions';
 import { RouterStateSerializer } from './serializer';
 
-export type RouterStateModel<T = RouterStateSnapshot> = {
+export interface RouterStateModel<T = RouterStateSnapshot> {
   state?: T;
   navigationId?: number;
-};
+}
 
 @State<RouterStateModel>({
   name: 'router',
@@ -42,7 +43,6 @@ export class RouterState {
   private lastRoutesRecognized: RoutesRecognized;
   private dispatchTriggeredByRouter = false; // used only in dev mode in combination with routerReducer
   private navigationTriggeredByDispatch = false; // used only in dev mode in combination with routerReducer
-  private lastResolvedStateSnapshot: RouterStateSnapshot = null!;
 
   /**
    * Selectors
@@ -63,7 +63,9 @@ export class RouterState {
     private _router: Router,
     private _serializer: RouterStateSerializer<RouterStateSnapshot>,
     private _ngZone: NgZone,
-    private location: Location
+    private _urlSerializer: UrlSerializer,
+    private _locationStrategy: LocationStrategy,
+    private _location: Location
   ) {
     this.setUpStoreListener();
     this.setUpStateRollbackEvents();
@@ -71,8 +73,8 @@ export class RouterState {
   }
 
   @Action(Navigate)
-  navigate(ctx: StateContext<RouterStateModel>, action: Navigate) {
-    this._ngZone.run(() =>
+  navigate(_: StateContext<RouterStateModel>, action: Navigate) {
+    return this._ngZone.run(() =>
       this._router.navigate(action.path, {
         queryParams: action.queryParams,
         ...action.extras
@@ -80,7 +82,7 @@ export class RouterState {
     );
   }
 
-  @Action([RouterNavigation, RouterError, RouterCancel])
+  @Action([RouterNavigation, RouterError, RouterCancel, RouterDataResolved])
   angularRouterAction(
     ctx: StateContext<RouterStateModel>,
     action: RouterAction<any, RouterStateSnapshot>
@@ -105,11 +107,10 @@ export class RouterState {
     this._router.events.subscribe(e => {
       if (e instanceof RoutesRecognized) {
         this.lastRoutesRecognized = e;
-      } else if (e instanceof GuardsCheckEnd || e instanceof ResolveEnd) {
-        // The `GuardsCheckEnd` event is always triggered unlike the `ResolveEnd`
-        this.lastResolvedStateSnapshot = e.state;
-      } else if (e instanceof NavigationEnd) {
-        this.navigationEnd();
+      } else if (e instanceof GuardsCheckEnd) {
+        this.guardsCheckEnd(e.state);
+      } else if (e instanceof ResolveEnd) {
+        this.dispatchRouterDataResolved(e);
       } else if (e instanceof NavigationCancel) {
         this.dispatchRouterCancel(e);
       } else if (e instanceof NavigationError) {
@@ -118,8 +119,8 @@ export class RouterState {
     });
   }
 
-  private navigationEnd(): void {
-    this.routerStateSnapshot = this._serializer.serialize(this.lastResolvedStateSnapshot);
+  private guardsCheckEnd(routerState: RouterStateSnapshot): void {
+    this.routerStateSnapshot = this._serializer.serialize(routerState);
     if (this.shouldDispatchRouterNavigation()) {
       this.dispatchRouterNavigation();
     }
@@ -156,6 +157,7 @@ export class RouterState {
   }
 
   private dispatchRouterCancel(event: NavigationCancel): void {
+    this.routerStateSnapshot = this._serializer.serialize(this._router.routerState.snapshot);
     this.dispatchRouterAction(
       new RouterCancel(this.routerStateSnapshot, this.routerState, event)
     );
@@ -181,6 +183,11 @@ export class RouterState {
     }
   }
 
+  private dispatchRouterDataResolved(event: ResolveEnd): void {
+    this.routerStateSnapshot = this._serializer.serialize(event.state);
+    this.dispatchRouterAction(new RouterDataResolved(this.routerStateSnapshot, event));
+  }
+
   /**
    * No sense to mess up the `setUpStateRollbackEvents` method as we have
    * to perform this check only once and unsubscribe after the first event
@@ -202,9 +209,28 @@ export class RouterState {
         // with another URL (e.g. used in combination with `NgxsStoragePlugin`), thus the
         // `RouterNavigation` action will be dispatched and the user will be redirected to the
         // previously saved URL. We want to prevent such behavior, so we perform this check
-        // in order to redirect user to the manually entered URL if it differs from the recognized one
-        if (url !== this.location.path()) {
-          this._router.navigateByUrl(location.pathname);
+
+        // `url` is a recognized URL by the Angular's router, while `currentUrl` is an actual URL
+        // entered in the browser's address bar
+        // `PathLocationStrategy.prototype.path()` returns a concatenation of
+        // `PlatformLocation.pathname` and normalized `PlatformLocation.search`.
+
+        // `Location.prototype.normalize` strips base href from the URL,
+        // if `baseHref` (declared in angular.json) for example is `/en`
+        // and the URL is `/test#anchor` - then `_locationStrategy.path(true)` will return `/en/test#anchor`,
+        // but `/en/test#anchor` is not known to the Angular's router, so we have to strip `/en`
+        // from the URL
+        const currentUrl = this._location.normalize(this._locationStrategy.path(true));
+        const currentUrlTree = this._urlSerializer.parse(currentUrl);
+        // We need to serialize the URL because in that example `/test/?redirect=https://google.com/`
+        // Angular will recognize it as `/test?redirect=https:%2F%2Fwww.google.com%2F`
+        // so we have to run the `currentUrl` via the `UrlSerializer` that will encode characters
+        const currentSerializedUrl = this._urlSerializer.serialize(currentUrlTree);
+
+        // If URLs differ from each other - we've got to perform a redirect to the manually entered URL
+        // in the address bar, as it must have a priority
+        if (currentSerializedUrl !== url) {
+          this._router.navigateByUrl(currentUrl);
         }
       });
   }

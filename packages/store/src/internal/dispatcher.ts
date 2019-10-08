@@ -1,6 +1,7 @@
 import { ErrorHandler, Injectable } from '@angular/core';
-import { empty, forkJoin, Observable, of, Subject, throwError } from 'rxjs';
+import { EMPTY, forkJoin, Observable, of, Subject, throwError } from 'rxjs';
 import { exhaustMap, filter, shareReplay, take } from 'rxjs/operators';
+
 import { ActionContext, ActionStatus, InternalActions } from '../actions-stream';
 import { InternalNgxsExecutionStrategy } from '../execution/internal-ngxs-execution-strategy';
 import { leaveNgxs } from '../operators/leave-ngxs';
@@ -32,10 +33,13 @@ export class InternalDispatcher {
    * Dispatches event(s).
    */
   dispatch(actionOrActions: any | any[]): Observable<any> {
-    const result = this._ngxsExecutionStrategy.enter(() => this.dispatchByEvents(actionOrActions));
+    const result = this._ngxsExecutionStrategy.enter(() =>
+      this.dispatchByEvents(actionOrActions)
+    );
 
     result.subscribe({
-      error: error => this._ngxsExecutionStrategy.leave(() => this._errorHandler.handleError(error))
+      error: error =>
+        this._ngxsExecutionStrategy.leave(() => this._errorHandler.handleError(error))
     });
 
     return result.pipe(leaveNgxs(this._ngxsExecutionStrategy));
@@ -69,7 +73,9 @@ export class InternalDispatcher {
 
   private getActionResultStream(action: any): Observable<ActionContext> {
     return this._actionResults.pipe(
-      filter((ctx: ActionContext) => ctx.action === action && ctx.status !== ActionStatus.Dispatched),
+      filter(
+        (ctx: ActionContext) => ctx.action === action && ctx.status !== ActionStatus.Dispatched
+      ),
       take(1),
       shareReplay()
     );
@@ -85,7 +91,7 @@ export class InternalDispatcher {
             case ActionStatus.Errored:
               return throwError(ctx.error);
             default:
-              return empty();
+              return EMPTY;
           }
         })
       )

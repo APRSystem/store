@@ -3,9 +3,13 @@ import { Inject, NgModule, Optional } from '@angular/core';
 import { StateFactory } from '../internal/state-factory';
 import { InternalStateOperations } from '../internal/state-operations';
 import { Store } from '../store';
-import { SelectFactory } from '../decorators/select';
-import { ROOT_STATE_TOKEN } from '../symbols';
-import { StateClass, StatesAndDefaults } from '../internal/internals';
+import { SelectFactory } from '../decorators/select/select-factory';
+import { NgxsConfig, ROOT_STATE_TOKEN } from '../symbols';
+import {
+  globalSelectorOptions,
+  StateClassInternal,
+  StatesAndDefaults
+} from '../internal/internals';
 import { LifecycleStateManager } from '../internal/lifecycle-state-manager';
 import { InitState } from '../actions/actions';
 
@@ -18,13 +22,16 @@ export class NgxsRootModule {
   constructor(
     factory: StateFactory,
     internalStateOperations: InternalStateOperations,
-    store: Store,
-    select: SelectFactory,
+    _store: Store,
+    _select: SelectFactory,
     @Optional()
     @Inject(ROOT_STATE_TOKEN)
-    states: StateClass[] = [],
+    states: StateClassInternal[] = [],
+    config: NgxsConfig,
     lifecycleStateManager: LifecycleStateManager
   ) {
+    globalSelectorOptions.set(config.selectorOptions || {});
+
     // add stores to the state graph and return their defaults
     const results: StatesAndDefaults = factory.addAndReturnDefaults(states);
 

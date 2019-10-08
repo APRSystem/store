@@ -1,20 +1,88 @@
 # [DEV version](https://www.npmjs.com/package/@ngxs/store/v/dev) 
-### To become 3.4.4 or [3.5.0](https://github.com/ngxs/store/milestone/7)
+### To become [3.6.0](https://github.com/ngxs/store/milestone/9)
 
 ```bash
 $ npm install @ngxs/store@dev
-```
-
-* Fix: Logger Plugin - replace `Object.entries` as it breaks IE11 [#931](https://github.com/ngxs/store/pull/931)
-* Fix: Router Plugin - trigger navigation on the `QueryParams` change [#924](https://github.com/ngxs/store/pull/924)
-* Fix: Router-plugin - redirect to the manually entered route [#920](https://github.com/ngxs/store/pull/920)
+``` 
+ 
+* Feature: expose StateContextFactory, StateFactory [#1325](https://github.com/ngxs/store/pull/1325)
+* Feature: implement `propertyPath` parameter in the `UpdateFormValue` [1215](https://github.com/ngxs/store/pull/1215)
+* Fix: Warn if the zone is not actual "NgZone" [#1270](https://github.com/ngxs/store/pull/1270)
+* Build: add build integration test with Angular 9 (Ivy) [#1278](https://github.com/ngxs/store/pull/1278)
+* Build: run SSR tests with cypress [#1281](https://github.com/ngxs/store/pull/1281)
 
 ## NGXS-Labs
+
+* Feature: announced [@ngxs-labs/data](https://github.com/ngxs-labs/data)
+
+# 3.5.1 2019-08-29
+
+* Fix: Ensure that `@Action()` is not usable with static methods [#1203](https://github.com/ngxs/store/pull/1203)
+* Fix: Router Plugin - normalize URL by stripping base href [#1178](https://github.com/ngxs/store/pull/1178)
+* Fix: Router Plugin - revert state back after "RouterCancel" is dispatched [#1236](https://github.com/ngxs/store/pull/1236)
+* Fix: Router Plugin - "includeHash" must be truthy requesting path [#1265](https://github.com/ngxs/store/pull/1265)
+* Fix: HMR Plugin - trigger ngOnDestroy for all components in app tree [#1192](https://github.com/ngxs/store/pull/1192)
+* Fix: HMR Plugin - remove `@angularclass/hmr` peer dependency [#1205](https://github.com/ngxs/store/pull/1205)
+* Fix: Forms Plugin - reduce `UpdateFormStatus` action dispatching [#1217](https://github.com/ngxs/store/pull/1217)
+* Fix: Logger Plugin - print next state even if error was thrown [#1247](https://github.com/ngxs/store/pull/1247)
+* Fix: Devtoos Plugin - send action to the dev tools even if error was thrown [#1249](https://github.com/ngxs/store/pull/1249)
+* Build: dtslint must use current version of TypeScript [#1182](https://github.com/ngxs/store/pull/1182)
+* Build: add bundle size checker for improved infrastructure [#1199](https://github.com/ngxs/store/pull/1199)
+* Build: configure typescript-eslint package [#1201](https://github.com/ngxs/store/pull/1201)
+* Build: add cypress for E2E testing [#1258](https://github.com/ngxs/store/pull/1258)
+
+## NGXS-Labs
+
+### Dispatch Decorator v2.1.0
+* Fix: remove `DispatchAction` and unnecessary closures [#252](https://github.com/ngxs-labs/dispatch-decorator/pull/252)
+
+### Dispatch Decorator v2.0.0
+
+* Build: prepare package for the Angular 8+ compatibility and support NGXS 3.5 [#247](https://github.com/ngxs-labs/dispatch-decorator/pull/247)
+* Build: configure `cypress` for SSR and E2E testing [#248](https://github.com/ngxs-labs/dispatch-decorator/pull/248)
+* Feat: implement `cancelUncompleted` option [#250](https://github.com/ngxs-labs/dispatch-decorator/pull/250)
+
+### Emitter-plugin v2.0.0
+
+* Feature: Support NGXS 3.5, TypeScript 3.5 [#317](https://github.com/ngxs-labs/emitter/pull/317)
+* Fix: change action type to instance property [#316](https://github.com/ngxs-labs/emitter/pull/316)
+
+# 3.5.0 2019-07-22
+
+* Feature: upgrade to support Angular 8 [#1156](https://github.com/ngxs/store/pull/1156)
+* Feature: selector option to disable supressing errors [#1015](https://github.com/ngxs/store/pull/1015), [#1087](https://github.com/ngxs/store/pull/1087)
+* Feature: expose NgxsModuleOptions as a named type [#1031](https://github.com/ngxs/store/pull/1031)
+* Feature: expose SelectorOptions decorator [#1029](https://github.com/ngxs/store/pull/1029), [#1047](https://github.com/ngxs/store/pull/1047)
+* Feature: expose StateClass as a named type [#1042](https://github.com/ngxs/store/pull/1042), [#1070](https://github.com/ngxs/store/pull/1070)
+* Feature: Router Plugin - add `RouterDataResolved` action [#1059](https://github.com/ngxs/store/pull/1059)
+* Feature: WebSocket Plugin - add `WebSocketConnectionUpdated` action [#1094](https://github.com/ngxs/store/pull/1094)
+* Performance: replace array `spread` with `slice` [#1066](https://github.com/ngxs/store/pull/1066), [#1071](https://github.com/ngxs/store/pull/1071)
+* Fix: Life-cycle events not triggering in root state [#1048](https://github.com/ngxs/store/pull/1048)
+* Fix: Logger Plugin - replace `Object.entries` as it breaks IE11 [#931](https://github.com/ngxs/store/pull/931)
+* Fix: Router Plugin - trigger navigation on the `QueryParams` change [#924](https://github.com/ngxs/store/pull/924)
+* Fix: Router Plugin - redirect to the manually entered route [#920](https://github.com/ngxs/store/pull/920), [#1159](https://github.com/ngxs/store/pull/1159)
+* Fix: Router Plugin - add `RouterDataResolved` to the union `RouterAction` type [#1093](https://github.com/ngxs/store/pull/1093)
+* Fix: Router Plugin - manual path check should not fail for SSR [#1158](https://github.com/ngxs/store/pull/1158)
+* Fix: HMR Plugin - remove old styles after reload [#1001](https://github.com/ngxs/store/pull/1001)
+* Fix: HMR Plugin - correct persistence state in runtime [#1048](https://github.com/ngxs/store/pull/1048)
+* Fix: HMR Plugin - does not properly restore state [#1139](https://github.com/ngxs/store/pull/1139)
+* Fix: Form Plugin - introduce conditional debounce [#1061](https://github.com/ngxs/store/pull/1061)
+* Fix: WebSocket Plugin - don't stop `WebSocketSubject` stream after dispatching `WebSocketDisconnected` [#1091](https://github.com/ngxs/store/pull/1091)
+* Fix: Storage Plugin - undefined localStorage error during SSR [#1119](https://github.com/ngxs/store/pull/1119)
+* Build: CI - decouple build infrastructure from root package.json [#1163](https://github.com/ngxs/store/pull/1163)
+* Build: use `jest` internally for testing [#1068](https://github.com/ngxs/store/pull/1068)
+
+## NGXS-Labs
+
+### Select-snapshot v1.0.0
+
+* Feature: announced [select-snapshot](https://github.com/ngxs-labs/select-snapshot)
 
 ### Immer-adapter v3.0.0
 
 * Feature: immutable state context decorator
 * Feature: immutable selector decorator
+* Feature: support immer v3.x
 * Deprecated: produce operator
 
 # 3.4.3 2019-03-14
@@ -48,7 +116,7 @@ $ npm install @ngxs/store@dev
 * Fix: Throw error when found duplicate state names [#791](https://github.com/ngxs/store/pull/791)
 * Fix: Bind static context to the selector function [#818](https://github.com/ngxs/store/pull/818)
 * Fix: WebSocket Plugin - `WebsocketMessageError` notifies of errors [#825](https://github.com/ngxs/store/pull/825)
-* Fix: Performance improved reading the name of the state from the parameter [#826](https://github.com/ngxs/store/pull/826)
+* Performance: improved reading the name of the state from the parameter [#826](https://github.com/ngxs/store/pull/826)
 * Fix: Log group not closed on error [#831](https://github.com/ngxs/store/pull/831)
 * Fix: Websocket Plugin - server/network error triggered close should dispatch WebSocketDisconnected [#832](https://github.com/ngxs/store/pull/832)
 * Fix: Form Plugin - correct state synchronization with dirty flag [#862](https://github.com/ngxs/store/pull/862)

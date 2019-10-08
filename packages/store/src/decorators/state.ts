@@ -1,10 +1,12 @@
-import { ensureStoreMetadata, MetaDataModel, StateClass } from '../internal/internals';
+import { StateClass } from '@ngxs/store/internals';
+
+import { ensureStoreMetadata, MetaDataModel, StateClassInternal } from '../internal/internals';
 import { META_KEY, META_OPTIONS_KEY, StoreOptions } from '../symbols';
 import { StoreValidators } from '../utils/store-validators';
 
 interface MutateMetaOptions<T> {
   meta: MetaDataModel;
-  inheritedStateClass: StateClass;
+  inheritedStateClass: StateClassInternal;
   optionsWithInheritance: StoreOptions<T>;
 }
 
@@ -12,8 +14,9 @@ interface MutateMetaOptions<T> {
  * Decorates a class with ngxs state information.
  */
 export function State<T>(options: StoreOptions<T>) {
-  function getStateOptions(inheritedStateClass: StateClass): StoreOptions<T> {
-    const inheritanceOptions: Partial<StoreOptions<T>> = inheritedStateClass[META_OPTIONS_KEY] || {};
+  function getStateOptions(inheritedStateClass: StateClassInternal): StoreOptions<T> {
+    const inheritanceOptions: Partial<StoreOptions<T>> =
+      inheritedStateClass[META_OPTIONS_KEY] || {};
     return { ...inheritanceOptions, ...options } as StoreOptions<T>;
   }
 
@@ -50,11 +53,12 @@ export function State<T>(options: StoreOptions<T>) {
   }
 
   return (target: StateClass): void => {
-    const meta: MetaDataModel = ensureStoreMetadata(target);
-    const inheritedStateClass: StateClass = Object.getPrototypeOf(target);
+    const stateClass: StateClassInternal = target;
+    const meta: MetaDataModel = ensureStoreMetadata(stateClass);
+    const inheritedStateClass: StateClassInternal = Object.getPrototypeOf(stateClass);
     const optionsWithInheritance: StoreOptions<T> = getStateOptions(inheritedStateClass);
     mutateMetaData({ meta, inheritedStateClass, optionsWithInheritance }, target);
-    target[META_OPTIONS_KEY] = optionsWithInheritance;
+    stateClass[META_OPTIONS_KEY] = optionsWithInheritance;
   };
 }
 // zwraca tablice klass state

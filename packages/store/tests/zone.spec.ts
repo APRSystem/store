@@ -1,19 +1,11 @@
-import {
-  ApplicationRef,
-  NgZone,
-  Component,
-  PlatformRef,
-  NgModule,
-  DoBootstrap,
-  NgModuleRef
-} from '@angular/core';
-import { TestBed, async, fakeAsync } from '@angular/core/testing';
-import { ɵDomAdapter as DomAdapter, ɵBrowserDomAdapter as BrowserDomAdapter, BrowserModule } from '@angular/platform-browser';import { DOCUMENT } from "@angular/common";
-
-import { Observable, Subscription } from 'rxjs';
+import { ApplicationRef, Component, NgModule, NgZone } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { BrowserModule } from '@angular/platform-browser';
+import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+import { freshPlatform } from '@ngxs/store/internals/testing';
 import { take } from 'rxjs/operators';
 
-import { State, Action, StateContext, NgxsModule, Store, Select } from '../src/public_api';
+import { Action, NgxsModule, State, StateContext, Store } from '../src/public_api';
 import { NoopNgxsExecutionStrategy } from '../src/execution/noop-ngxs-execution-strategy';
 
 describe('zone', () => {
@@ -211,65 +203,44 @@ describe('zone', () => {
     store.dispatch(new FooAction());
   });
 
-  function createRootNode(selector = 'app-root'): void {
-    const document = TestBed.get(DOCUMENT);
-    const adapter: DomAdapter = new BrowserDomAdapter();
-
-    const root = adapter.firstChild(
-      adapter.content(adapter.createTemplate(`<${selector}></${selector}>`))
-    );
-
-    const oldRoots = adapter.querySelectorAll(document, selector);
-    oldRoots.forEach(oldRoot => adapter.remove(oldRoot));
-
-    adapter.appendChild(document.body, root);
-  }
-
-  it('actions should be handled outside zone if zone is "nooped"', async(() => {
-    class FooAction {
-      public static readonly type = 'Foo';
-    }
-
-    @State({ name: 'foo' })
-    class FooState {
-      @Action(FooAction)
-      public fooAction(): void {
-        expect(NgZone.isInAngularZone()).toBeFalsy();
+  it(
+    'actions should be handled outside zone if zone is "nooped"',
+    freshPlatform(async () => {
+      class FooAction {
+        public static readonly type = 'Foo';
       }
-    }
 
-    @Component({
-      selector: 'app-root',
-      template: ''
-    })
-    class MockComponent {}
-
-    @NgModule({
-      imports: [
-        BrowserModule,
-        NgxsModule.forRoot([FooState], {
-          executionStrategy: NoopNgxsExecutionStrategy
-        })
-      ],
-      declarations: [MockComponent],
-      entryComponents: [MockComponent]
-    })
-    class MockModule implements DoBootstrap {
-      public ngDoBootstrap(app: ApplicationRef): void {
-        createRootNode();
-        app.bootstrap(MockComponent);
+      @State({ name: 'foo' })
+      class FooState {
+        @Action(FooAction)
+        public fooAction(): void {
+          expect(NgZone.isInAngularZone()).toBeFalsy();
+        }
       }
-    }
 
-    const platformRef: PlatformRef = TestBed.get(PlatformRef);
-
-    platformRef
-      .bootstrapModule(MockModule, {
-        ngZone: 'noop'
+      @Component({
+        selector: 'app-root',
+        template: ''
       })
-      .then((module: NgModuleRef<MockModule>) => {
-        const store = module.injector.get<Store>(Store);
-        store.dispatch(new FooAction());
+      class MockComponent {}
+
+      @NgModule({
+        imports: [
+          BrowserModule,
+          NgxsModule.forRoot([FooState], {
+            executionStrategy: NoopNgxsExecutionStrategy
+          })
+        ],
+        declarations: [MockComponent],
+        bootstrap: [MockComponent]
+      })
+      class MockModule {}
+
+      const { injector } = await platformBrowserDynamic().bootstrapModule(MockModule, {
+        ngZone: 'noop'
       });
-  }));
+      const store = injector.get<Store>(Store);
+      store.dispatch(new FooAction());
+    })
+  );
 });

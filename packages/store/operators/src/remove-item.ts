@@ -1,11 +1,11 @@
 import { Predicate } from './internals';
-import { isPredicate, isNumber, invalidIndex } from './utils';
+import { isPredicate, isNumber, invalidIndex, RepairType } from './utils';
 
 /**
  * @param selector - index or predicate to remove an item from an array by
  */
 export function removeItem<T>(selector: number | Predicate<T>) {
-  return function removeItemOperator(existing: Readonly<T[]>): T[] {
+  return function removeItemOperator(existing: Readonly<RepairType<T>[]>): RepairType<T>[] {
     let index = -1;
 
     if (isPredicate(selector)) {
@@ -15,10 +15,10 @@ export function removeItem<T>(selector: number | Predicate<T>) {
     }
 
     if (invalidIndex(index)) {
-      return existing;
+      return existing as RepairType<T>[];
     }
 
-    const clone = [...existing];
+    const clone = existing.slice();
     clone.splice(index, 1);
     return clone;
   };

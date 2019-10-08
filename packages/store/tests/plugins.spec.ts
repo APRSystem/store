@@ -3,24 +3,29 @@ import { NgxsModule } from '../src/module';
 import { NGXS_PLUGINS } from '../src/plugin_api';
 import { Store } from '../src/store';
 import { tap } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 
 describe('Plugins', () => {
   it('should run a function plugin', () => {
-    const spy = jasmine.createSpy('plugin spy');
+    let pluginInvoked = 0;
 
     class Foo {
       static readonly type = 'Foo';
     }
 
-    function logPlugin(state, action, next) {
-      if (action.constructor.type === 'Foo') {
-        spy();
+    function logPlugin(
+      state: any,
+      action: any,
+      next: (state: any, action: any) => Observable<any>
+    ) {
+      if (action.constructor && action.constructor.type === 'Foo') {
+        pluginInvoked++;
       }
 
       return next(state, action).pipe(
         tap(() => {
           if (action.constructor.type === 'Foo') {
-            spy();
+            pluginInvoked++;
           }
         })
       );
@@ -40,6 +45,6 @@ describe('Plugins', () => {
     const store: Store = TestBed.get(Store);
     store.dispatch(new Foo());
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(pluginInvoked).toEqual(2);
   });
 });

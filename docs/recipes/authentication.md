@@ -1,13 +1,14 @@
 # Authentication
+
 Authentication is a common theme across many applications. Let's take a look
 at how we would implement this in NGXS.
 
 First, let's define our state model and our actions:
 
 ```TS
-export class AuthStateModel {
-  token?: string;
-  username?: string;
+export interface AuthStateModel {
+  token: string | null;
+  username: string | null;
 }
 
 export class Login {
@@ -28,28 +29,49 @@ service.
 
 ```TS
 @State<AuthStateModel>({
-  name: 'auth'
+  name: 'auth',
+  defaults: {
+    token: null,
+    username: null
+  }
 })
 export class AuthState {
 
   @Selector()
-  static token(state: AuthStateModel) { return state.token; }
+  static token(state: AuthStateModel): string | null {
+    return state.token;
+  }
+
+  @Selector()
+  static isAuthenticated(state: AuthStateModel): boolean {
+    return !!state.token;
+  }
 
   constructor(private authService: AuthService) {}
 
   @Action(Login)
-  login({ patchState }: StateContext<AuthStateModel>, { payload }: Login) {
-    return this.authService.login(payload).pipe(tap((result: { token: string }) => {
-      patchState({ token, username: payload.username });
-    }))
+  login(ctx: StateContext<AuthStateModel>, action: Login) {
+    return this.authService.login(action.payload).pipe(
+      tap((result: { token: string }) => {
+        ctx.patchState({
+          token: result.token,
+          username: action.payload.username
+        });
+      })
+    );
   }
 
   @Action(Logout)
-  logout({ setState, getState }: StateContext<AuthStateModel>) {
-    const { token } = getState();
-    return this.authService.logout(token).pipe(tap(() => {
-      setState({});
-    });
+  logout(ctx: StateContext<AuthStateModel>) {
+    const state = getState();
+    return this.authService.logout(state.token).pipe(
+      tap(() => {
+        ctx.setState({
+          token: null,
+          username: null
+        });
+      })
+    );
   }
 
 }
@@ -85,11 +107,12 @@ We can easily accomplish this with a router guard provided by Angular.
 ```TS
 @Injectable()
 export class AuthGuard implements CanActivate {
+
   constructor(private store: Store) {}
 
   canActivate() {
-    const token = this.store.selectSnapshot(AuthState.token);
-    return token !== undefined;
+    const isAuthenticated = this.store.selectSnapshot(AuthState.isAuthenticated);
+    return isAuthenticated;
   }
 
 }
@@ -117,16 +140,17 @@ the login page.
 
 ```TS
 @Component({
-  selector: 'app'
+  selector: 'app',
+  template: '..'
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
 
   constructor(private actions: Actions, private router: Router) {}
 
   ngOnInit() {
     this.actions.pipe(ofActionDispatched(Logout)).subscribe(() => {
       this.router.navigate(['/login']);
-    })
+    });
   }
 
 }

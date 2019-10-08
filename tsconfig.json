@@ -2,15 +2,17 @@
   "compileOnSave": false,
   "compilerOptions": {
     "baseUrl": "./",
+    "downlevelIteration": true,
     "outDir": "out-tsc/lib",
     "paths": {
       "@integration/*": ["integration/app/*"],
-      "@integration/env/*": ["integration/environments/*"],
       "@ngxs/store/operators": ["packages/store/operators/src"],
       "@ngxs/store/internals": ["packages/store/internals/src"],
       "@ngxs/*": ["packages/*"]
     },
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "strictPropertyInitialization": false,
     "sourceMap": true,
     "declaration": false,
@@ -21,8 +23,5 @@
     "lib": ["es2017", "dom"],
     "typeRoots": ["node_modules/@types"]
   },
-  "exclude": [
-    "@ngxs/**",
-    "integrations/**"
-  ]
+  "exclude": ["@ngxs/**", "integrations/**"]
 }

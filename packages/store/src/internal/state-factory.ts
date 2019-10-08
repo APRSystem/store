@@ -1,6 +1,8 @@
-import { Injectable, Injector, isDevMode, Optional, SkipSelf } from '@angular/core';
+import { Inject, Injectable, Injector, isDevMode, Optional, SkipSelf } from '@angular/core';
+import { INITIAL_STATE_TOKEN, PlainObjectOf } from '@ngxs/store/internals';
 import { forkJoin, from, Observable, of, throwError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, mergeMap, shareReplay, takeUntil } from 'rxjs/operators';
+
 import { ActionContext, ActionStatus, InternalActions } from '../actions-stream';
 import { NgxsAction } from '../actions/base.action';
 import { NGXS_MAIN_CONTEXT } from '../common/consts';
@@ -8,7 +10,6 @@ import { ActionKind } from '../common/enums';
 import { SelectLocation } from '../common/selectLocation';
 import { InternalDispatchedActionResults } from '../internal/dispatcher';
 import { StateContextFactory } from '../internal/state-context-factory';
-import { InternalStateOperations } from '../internal/state-operations';
 import { ofActionDispatched } from '../operators/of-action';
 import { META_KEY, NgxsConfig } from '../symbols';
 import { StoreValidators } from '../utils/store-validators';
@@ -17,19 +18,18 @@ import {
   buildGraph,
   findFullParentPath,
   getStoreMetadata,
-  InternalSelectorOptions,
   isObject,
   MappedStore,
   MetaDataModel,
   nameToState,
-  ObjectKeyMap,
   propGetter,
-  StateClass,
+  SharedSelectorOptions,
+  StateClassInternal,
   StateKeyGraph,
   StateLocation,
   StatesAndDefaults,
   StatesByName,
-  topologicalSort
+  topologicalSort,
 } from './internals';
 
 /**
@@ -39,8 +39,6 @@ import {
 @Injectable()
 export class StateFactory {
   private _connected = false;
-  private _states: MappedStore[] = [];
-  private _statesByName: StatesByName = {};
 
   constructor(
     private _injector: Injector,
@@ -51,26 +49,28 @@ export class StateFactory {
     private _actions: InternalActions,
     private _actionResults: InternalDispatchedActionResults,
     private _stateContextFactory: StateContextFactory,
-    private _internalStateOperations: InternalStateOperations
+    @Optional()
+    @Inject(INITIAL_STATE_TOKEN)
+    private _initialState: any
   ) {}
+
+  private _states: MappedStore[] = [];
 
   public get states(): MappedStore[] {
     return this._parentFactory ? this._parentFactory.states : this._states;
   }
 
+  private _statesByName: StatesByName = {};
+
   public get statesByName(): StatesByName {
     return this._parentFactory ? this._parentFactory.statesByName : this._statesByName;
-  }
-
-  private get stateTreeRef(): ObjectKeyMap<any> {
-    return this._internalStateOperations.getRootStateOperations().getState();
   }
 
   private static cloneDefaults(defaults: any): any {
     let value = {};
 
     if (Array.isArray(defaults)) {
-      value = [...defaults];
+      value = defaults.slice();
     } else if (isObject(defaults)) {
       value = { ...defaults };
     } else if (defaults === undefined) {
@@ -82,26 +82,26 @@ export class StateFactory {
     return value;
   }
 
-  private static checkStatesAreValid(stateClasses: StateClass[]): void {
+  private static checkStatesAreValid(stateClasses: StateClassInternal[]): void {
     stateClasses.forEach(StoreValidators.getValidStateMeta);
   }
 
   /**
    * Add a new state to the global defs.
    */
-  add(stateClasses: StateClass[]): MappedStore[] {
+  add(stateClasses: StateClassInternal[]): MappedStore[] {
     StateFactory.checkStatesAreValid(stateClasses);
     const { newStates } = this.addToStatesMap(stateClasses);
     if (!newStates.length) return [];
 
     const stateGraph: StateKeyGraph = buildGraph(newStates);
     const sortedStates: string[] = topologicalSort(stateGraph);
-    const depths: ObjectKeyMap<string> = findFullParentPath(stateGraph);
-    const nameGraph: ObjectKeyMap<StateClass> = nameToState(newStates);
+    const depths: PlainObjectOf<string> = findFullParentPath(stateGraph);
+    const nameGraph: PlainObjectOf<StateClassInternal> = nameToState(newStates);
     const bootstrappedStores: MappedStore[] = [];
 
     for (const name of sortedStates) {
-      const stateClass: StateClass = nameGraph[name];
+      const stateClass: StateClassInternal = nameGraph[name];
       const depth: string = depths[name];
       const meta: MetaDataModel = stateClass[META_KEY]!;
 
@@ -133,11 +133,14 @@ export class StateFactory {
   /**
    * Add a set of states to the store and return the defaults
    */
-  addAndReturnDefaults(stateClasses: StateClass[]): StatesAndDefaults {
-    const classes: StateClass[] = stateClasses || [];
+  addAndReturnDefaults(stateClasses: StateClassInternal[]): StatesAndDefaults {
+    const classes: StateClassInternal[] = stateClasses || [];
 
     const states: MappedStore[] = this.add(classes);
-    const defaults = states.reduce((result: any, meta: MappedStore) => setValue(result, meta.depth, meta.defaults), {});
+    const defaults = states.reduce(
+      (result: any, meta: MappedStore) => setValue(result, meta.depth, meta.defaults),
+      {}
+    );
     return { defaults, states };
   }
 
@@ -153,7 +156,9 @@ export class StateFactory {
           this.invokeActions(this._actions, action!).pipe(
             map(() => <ActionContext>{ action, status: ActionStatus.Successful }),
             defaultIfEmpty(<ActionContext>{ action, status: ActionStatus.Canceled }),
-            catchError(error => of(<ActionContext>{ action, status: ActionStatus.Errored, error }))
+            catchError(error =>
+              of(<ActionContext>{ action, status: ActionStatus.Errored, error })
+            )
           )
         )
       )
@@ -192,12 +197,12 @@ export class StateFactory {
             }
 
             if (result instanceof Observable) {
-              result = result.pipe(
-                actionMeta.options.cancelUncompleted
-                  ? // todo: ofActionDispatched should be used with action class
-                    takeUntil(actions$.pipe(ofActionDispatched(action as any)))
-                  : map(r => r)
-              ); // map acts like a noop
+              if (actionMeta.options.cancelUncompleted) {
+                // todo: ofActionDispatched should be used with action class
+                result = result.pipe(
+                  takeUntil(actions$.pipe(ofActionDispatched(action as any)))
+                );
+              }
             } else {
               result = of({}).pipe(shareReplay());
             }
@@ -229,13 +234,15 @@ export class StateFactory {
     return forkJoin(results);
   }
 
-  private addToStatesMap(stateClasses: StateClass[]): { newStates: StateClass[] } {
-    const newStates: StateClass[] = [];
+  private addToStatesMap(
+    stateClasses: StateClassInternal[]
+  ): { newStates: StateClassInternal[] } {
+    const newStates: StateClassInternal[] = [];
     const statesMap: StatesByName = this.statesByName;
 
     for (const stateClass of stateClasses) {
       const stateName: string = StoreValidators.checkStateNameIsUnique(stateClass, statesMap);
-      const unmountedState: boolean = !statesMap[stateName];
+      const unmountedState = !statesMap[stateName];
       if (unmountedState) {
         newStates.push(stateClass);
         statesMap[stateName] = stateClass;
@@ -248,7 +255,8 @@ export class StateFactory {
   private addRuntimeInfoToMeta(meta: MetaDataModel, depth: string): void {
     meta.path = depth;
     meta.selectFromAppState = propGetter(depth.split('.'), this._config);
-    const globalSelectorOptions: InternalSelectorOptions = (<any>this._config).internalSelectorOptions;
+    const globalSelectorOptions: SharedSelectorOptions = (<any>this._config)
+      .internalSelectorOptions;
     if (globalSelectorOptions) {
       const classSelectorOptions = meta.internalSelectorOptions || {};
       meta.internalSelectorOptions = { ...globalSelectorOptions, ...classSelectorOptions };
@@ -276,8 +284,9 @@ export class StateFactory {
    * @param path
    */
   private hasBeenMountedAndBootstrapped(name: string, path: string): boolean {
-    const valueIsBootstrapped: boolean = getValue(this.stateTreeRef, path) !== undefined;
-    return this.statesByName[name] && valueIsBootstrapped;
+    const valueIsBootstrappedInInitialState: boolean =
+      getValue(this._initialState, path) !== undefined;
+    return this.statesByName[name] && valueIsBootstrappedInInitialState;
   }
   /** Function returns state data path based on SelectLocation and state metatadata */
   getLocationPath(location: SelectLocation, state: any): string {
@@ -302,19 +311,27 @@ export class StateFactory {
       } else return location.path;
     } else {
       if (location.context !== '') {
-        const tmp = this.states.filter(p => p.context === location.context && p.name === location.name);
+        const tmp = this.states.filter(
+          p => p.context === location.context && p.name === location.name
+        );
         return tmp[0].depth;
       }
     }
     throw new Error(`AF Error, wrong get location path`);
   }
   /** Function checks is MappedStore and SelectLocation points to same state data */
-  private checkLocationWithMappedStore(location: SelectLocation, mappedStore: MappedStore): boolean {
+  private checkLocationWithMappedStore(
+    location: SelectLocation,
+    mappedStore: MappedStore
+  ): boolean {
     if (location.path && location.path === mappedStore.depth) {
       return true;
     }
     if (location.name) {
-      if (location.context && (location.name === mappedStore.name && location.context === mappedStore.context)) {
+      if (
+        location.context &&
+        (location.name === mappedStore.name && location.context === mappedStore.context)
+      ) {
         return true;
       } else {
         if (location.name === mappedStore.name) {

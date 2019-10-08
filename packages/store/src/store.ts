@@ -1,6 +1,7 @@
 // tslint:disable:unified-signatures
-import { Injectable, Injector, isDevMode, Type } from '@angular/core';
-import { Observable, of, Subscription } from 'rxjs';
+import { Inject, Injectable, Injector, isDevMode, Optional, Type } from '@angular/core';
+import { INITIAL_STATE_TOKEN, ObjectUtils, PlainObject, PlainObjectOf } from '@ngxs/store/internals';
+import { Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, distinctUntilChanged, map, take } from 'rxjs/operators';
 
 import { UpdateState } from './actions/actions';
@@ -14,10 +15,9 @@ import {
   getSelectorMetadata,
   isObject,
   MappedStore,
-  ObjectKeyMap,
   propGetter,
   SelectorMetaDataModel,
-  StateClass,
+  StateClassInternal,
   StateLocation,
   StateOperations,
 } from './internal/internals';
@@ -37,32 +37,18 @@ export class Store {
     private _config: NgxsConfig,
     private _internalExecutionStrategy: InternalNgxsExecutionStrategy,
     private _stateFactory: StateFactory,
-    private _injector: Injector
+    private _injector: Injector,
+    @Optional()
+    @Inject(INITIAL_STATE_TOKEN)
+    initialStateValue: any
   ) {
-    const value: ObjectKeyMap<any> = this._stateStream.value;
-    const storeIsEmpty: boolean = !value || Object.keys(value).length === 0;
-    if (storeIsEmpty) {
-      this._stateStream.next(this._config.defaultsState);
-    }
+    this.initStateStream(initialStateValue);
   }
 
   /**
    * Dispatches event(s).
    */
   dispatch(event: any | any[]): Observable<any> {
-    return this._internalStateOperations.getRootStateOperations().dispatch(event);
-  }
-
-  /**
-   * Allows to dispatch action with State Location specified, so we can specifiy on which part of
-   * State data tree we want action to work
-   */
-  dispatchInLocation(event: NgxsAction | NgxsAction[], location: SelectLocation): Observable<any> {
-    if (Array.isArray(event)) {
-      event.forEach(evnt => (evnt.location = location));
-    } else {
-      event.location = location;
-    }
     return this._internalStateOperations.getRootStateOperations().dispatch(event);
   }
 
@@ -75,15 +61,19 @@ export class Store {
     const selectorFn = getSelectorFn(selector);
     return this._stateStream.pipe(
       map(selectorFn),
-      catchError(err => {
-        // if error is TypeError we swallow it to prevent usual errors with property access
-        if (err instanceof TypeError) {
-          return of(undefined);
-        }
+      catchError(
+        (err: Error): Observable<never> | Observable<undefined> => {
+          // if error is TypeError we swallow it to prevent usual errors with property access
+          const { suppressErrors } = this._config.selectorOptions;
 
-        // rethrow other errors
-        throw err;
-      }),
+          if (err instanceof TypeError && suppressErrors) {
+            return of(undefined);
+          }
+
+          // rethrow other errors
+          return throwError(err);
+        }
+      ),
       distinctUntilChanged(),
       leaveNgxs(this._internalExecutionStrategy)
     );
@@ -109,65 +99,6 @@ export class Store {
     return selectorFn(this._stateStream.getValue());
   }
 
-  /** Allows to select slice of data from the store from specified location */
-  selectInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
-  selectInContext(selector: string | any, filter: SelectLocation): Observable<any>;
-  selectInContext(selector: any, filter: SelectLocation): Observable<any> {
-    const selectorFn = getSelectorFn(selector, this._stateFactory.getLocationPath(filter, selector));
-    return this._stateStream.pipe(
-      map(selectorFn),
-      catchError(err => {
-        // if error is TypeError we swallow it to prevent usual errors with property access
-        if (err instanceof TypeError) {
-          console.error(`AF selector doesn't exist, error: ${err}, ${filter.path}`);
-          return of(undefined);
-        }
-        // rethrow other errors
-        throw err;
-      }),
-      distinctUntilChanged(),
-      leaveNgxs(this._internalExecutionStrategy)
-    );
-  }
-  /** Allows to select one slice of data from the store from specified location */
-  selectOnceInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
-  selectOnceInContext(selector: string | any, filter: SelectLocation): Observable<any>;
-  selectOnceInContext(selector: any, filter: SelectLocation): Observable<any> {
-    return this.selectInContext(selector, filter).pipe(take(1));
-  }
-
-  /**
-   * Select a snapshot from the state  from specified location
-   */
-  selectSnapshotInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): T;
-  selectSnapshotInContext(selector: string | any, filter: SelectLocation): any;
-  selectSnapshotInContext(selector: any, filter: SelectLocation): any {
-    const selectorFn = getSelectorFn(selector, this._stateFactory.getLocationPath(filter, selector));
-    return selectorFn(this._stateStream.getValue());
-  }
-
-  selectInStateContext<T>(stateClass: any, selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T> {
-    const locationPath = this._stateFactory.getLocationPath(filter, selector);
-    const state = this._stateFactory.states.find(p => p.instance.constructor.name === stateClass.name);
-    const selectorMData = getSelectorMetadata(selector);
-    const selectorMetadata = state!.selectors[selectorMData.selectorName!];
-
-    const selectorFn = getSelectorFunction(selectorMetadata, locationPath);
-    return this._stateStream.pipe(
-      map(selectorFn),
-      catchError(err => {
-        // if error is TypeError we swallow it to prevent usual errors with property access
-        if (err instanceof TypeError) {
-          return of(undefined);
-        }
-        // rethrow other errors
-        throw err;
-      }),
-      distinctUntilChanged(),
-      leaveNgxs(this._internalExecutionStrategy)
-    );
-  }
-
   /**
    * Allow the user to subscribe to the root of the state
    */
@@ -189,8 +120,118 @@ export class Store {
   reset(state: any) {
     return this._internalStateOperations.getRootStateOperations().setState(state);
   }
-  getChildren(stateClass: StateClass): StateClass[] {
-    const getChild = (childClass: StateClass) => {
+
+  private initStateStream(initialStateValue: any): void {
+    const value: PlainObject = this._stateStream.value;
+    const storeIsEmpty: boolean = !value || Object.keys(value).length === 0;
+    if (storeIsEmpty) {
+      const defaultStateNotEmpty: boolean = Object.keys(this._config.defaultsState).length > 0;
+      const storeValues: PlainObject = defaultStateNotEmpty
+        ? ObjectUtils.merge(this._config.defaultsState, initialStateValue)
+        : initialStateValue;
+
+      this._stateStream.next(storeValues);
+    }
+  }
+
+  /**
+   * Allows to dispatch action with State Location specified, so we can specifiy on which part of
+   * State data tree we want action to work
+   */
+  dispatchInLocation(
+    event: NgxsAction | NgxsAction[],
+    location: SelectLocation
+  ): Observable<any> {
+    if (Array.isArray(event)) {
+      event.forEach(evnt => (evnt.location = location));
+    } else {
+      event.location = location;
+    }
+    return this._internalStateOperations.getRootStateOperations().dispatch(event);
+  }
+
+  /** Allows to select slice of data from the store from specified location */
+  selectInContext<T>(
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): Observable<T>;
+  selectInContext(selector: string | any, filter: SelectLocation): Observable<any>;
+  selectInContext(selector: any, filter: SelectLocation): Observable<any> {
+    const selectorFn = getSelectorFn(
+      selector,
+      this._stateFactory.getLocationPath(filter, selector)
+    );
+    return this._stateStream.pipe(
+      map(selectorFn),
+      catchError(err => {
+        // if error is TypeError we swallow it to prevent usual errors with property access
+        if (err instanceof TypeError) {
+          console.error(`AF selector doesn't exist, error: ${err}, ${filter.path}`);
+          return of(undefined);
+        }
+        // rethrow other errors
+        throw err;
+      }),
+      distinctUntilChanged(),
+      leaveNgxs(this._internalExecutionStrategy)
+    );
+  }
+  /** Allows to select one slice of data from the store from specified location */
+  selectOnceInContext<T>(
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): Observable<T>;
+  selectOnceInContext(selector: string | any, filter: SelectLocation): Observable<any>;
+  selectOnceInContext(selector: any, filter: SelectLocation): Observable<any> {
+    return this.selectInContext(selector, filter).pipe(take(1));
+  }
+
+  /**
+   * Select a snapshot from the state  from specified location
+   */
+  selectSnapshotInContext<T>(
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): T;
+  selectSnapshotInContext(selector: string | any, filter: SelectLocation): any;
+  selectSnapshotInContext(selector: any, filter: SelectLocation): any {
+    const selectorFn = getSelectorFn(
+      selector,
+      this._stateFactory.getLocationPath(filter, selector)
+    );
+    return selectorFn(this._stateStream.getValue());
+  }
+
+  selectInStateContext<T>(
+    stateClass: any,
+    selector: (state: any, ...states: any[]) => T,
+    filter: SelectLocation
+  ): Observable<T> {
+    const locationPath = this._stateFactory.getLocationPath(filter, selector);
+    const state = this._stateFactory.states.find(
+      p => p.instance.constructor.name === stateClass.name
+    );
+    const selectorMData = getSelectorMetadata(selector);
+    const selectorMetadata = state!.selectors[selectorMData.selectorName!];
+
+    const selectorFn = getSelectorFunction(selectorMetadata, locationPath);
+    return this._stateStream.pipe(
+      map(selectorFn),
+      catchError(err => {
+        // if error is TypeError we swallow it to prevent usual errors with property access
+        if (err instanceof TypeError) {
+          return of(undefined);
+        }
+        // rethrow other errors
+        throw err;
+      }),
+      distinctUntilChanged(),
+      leaveNgxs(this._internalExecutionStrategy)
+    );
+  }
+
+  getChildren(stateClass: StateClassInternal): StateClassInternal[] {
+    const getChild = (childClass: StateClassInternal) => {
       if (!childClass[META_KEY]) {
         throw new Error('States must be decorated with @State() decorator');
       }
@@ -320,12 +361,18 @@ export class Store {
           p => p.depth.startsWith(location.path) && p.instance.constructor.name === parentType
         );
         if (!parentMetaData) {
-          parentNotFound = `Connot find parent ${parentType} state in location path ${location.path} for child state ${childName}`;
+          parentNotFound = `Connot find parent ${parentType} state in location path ${
+            location.path
+          } for child state ${childName}`;
         }
       } else {
-        parentMetaData = this._stateFactory.states.find(p => p.name === parent && p.context === location.context);
+        parentMetaData = this._stateFactory.states.find(
+          p => p.name === parent && p.context === location.context
+        );
         if (!parentMetaData) {
-          parentNotFound = `Cannot find parent  ${parent} state in context ${location.context} for child state ${childName}`;
+          parentNotFound = `Cannot find parent  ${parent} state in context ${
+            location.context
+          } for child state ${childName}`;
         }
       }
     }
@@ -338,8 +385,8 @@ export class Store {
       }
     }
     const mappedStores: MappedStore[] = [];
-    const actions: ObjectKeyMap<ActionHandlerMetaData[]> = child[META_KEY].actions;
-    const selectors: ObjectKeyMap<SelectorMetaDataModel> = child[META_KEY].selectors;
+    const actions: PlainObjectOf<ActionHandlerMetaData[]> = child[META_KEY].actions;
+    const selectors: PlainObjectOf<SelectorMetaDataModel> = child[META_KEY].selectors;
     const { defaults } = child[META_KEY];
 
     const depth = parentMetaData!.depth + '.' + childName;
@@ -388,12 +435,30 @@ export class Store {
       stateOperations.setState(newState);
       const { children } = child[META_KEY];
       if (children) {
-        children.forEach((item: any, index: number) => {
+        children.forEach((item: any) => {
           if (inPath) {
-            mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inPath));
+            mappedStores.push(
+              ...this.addChildInternal(
+                depth,
+                child.name,
+                item,
+                item[META_KEY].name,
+                stateOperations,
+                location,
+                inPath
+              )
+            );
           } else {
             mappedStores.push(
-              ...this.addChildInternal(childName, child.name, item, item[META_KEY].name, stateOperations, location, inPath)
+              ...this.addChildInternal(
+                childName,
+                child.name,
+                item,
+                item[META_KEY].name,
+                stateOperations,
+                location,
+                inPath
+              )
             );
           }
         });
@@ -421,7 +486,16 @@ export class Store {
       childName = child[META_KEY].name;
     }
     const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName!, stateOperations, loc));
+    mappedStores.push(
+      ...this.addChildInternal(
+        parentLocalName,
+        parent.name,
+        child,
+        childName!,
+        stateOperations,
+        loc
+      )
+    );
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       // this._stateFactory.invokeInit(mappedStores);
@@ -431,7 +505,13 @@ export class Store {
   /**
    * Adds child state in given context
    */
-  addChildInContext(parent: any, filter: SelectLocation, child: any, childName?: string, parentName?: string) {
+  addChildInContext(
+    parent: any,
+    filter: SelectLocation,
+    child: any,
+    childName?: string,
+    parentName?: string
+  ) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const mappedStores: MappedStore[] = [];
     const parentMetaData = this._stateFactory.states.filter(
@@ -447,16 +527,29 @@ export class Store {
         parentLocalName = parent[META_KEY].name;
       } else {
         if (isDevMode()) {
-          console.error(`State class ${parent.name} added more than once in context ${filter.context}`);
+          console.error(
+            `State class ${parent.name} added more than once in context ${filter.context}`
+          );
         } else {
-          throw new Error(`State class ${parent.name} added more than once in context ${filter.context}`);
+          throw new Error(
+            `State class ${parent.name} added more than once in context ${filter.context}`
+          );
         }
       }
     }
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName!, stateOperations, filter));
+    mappedStores.push(
+      ...this.addChildInternal(
+        parentLocalName,
+        parent.name,
+        child,
+        childName!,
+        stateOperations,
+        filter
+      )
+    );
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       // this._stateFactory.invokeInit(mappedStores);
@@ -472,7 +565,17 @@ export class Store {
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(...this.addChildInternal(location.path, parent.name, child, childName!, stateOperations, location, true));
+    mappedStores.push(
+      ...this.addChildInternal(
+        location.path,
+        parent.name,
+        child,
+        childName!,
+        stateOperations,
+        location,
+        true
+      )
+    );
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       // this._stateFactory.invokeInit(mappedStores);
@@ -483,7 +586,9 @@ export class Store {
    * Searches for state with given name added in root path and returns path to that state
    */
   getStateInPath(root: SelectLocation, stateName: string): SelectLocation {
-    const state = this._stateFactory.states.find(p => p.depth.startsWith(root.path) && p.name === stateName);
+    const state = this._stateFactory.states.find(
+      p => p.depth.startsWith(root.path) && p.name === stateName
+    );
     if (state) {
       return SelectLocation.filterByPath(state.depth);
     }
@@ -514,7 +619,9 @@ export class Store {
         console.error(`State in location ${location.path} dont exists. Cannot delete state`);
       }
     } else {
-      const checkedChildren = this._stateFactory.states.filter(p => p.depth.startsWith(has.depth));
+      const checkedChildren = this._stateFactory.states.filter(p =>
+        p.depth.startsWith(has.depth)
+      );
       for (const innerChild of checkedChildren) {
         const index = this._stateFactory.states.indexOf(innerChild);
         this._stateFactory.states.splice(index, 1);
@@ -538,7 +645,9 @@ export class Store {
         console.error('State of name ' + childName + ' dont exists. Cannot delete state');
       }
     } else {
-      const checkedChildren = this._stateFactory.states.filter(p => p.depth.startsWith(has.depth));
+      const checkedChildren = this._stateFactory.states.filter(p =>
+        p.depth.startsWith(has.depth)
+      );
       for (const innerChild of checkedChildren) {
         const index = this._stateFactory.states.indexOf(innerChild);
         this._stateFactory.states.splice(index, 1);

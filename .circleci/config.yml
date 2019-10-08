@@ -4,10 +4,10 @@ version: 2
 job_defaults_var: &job_defaults
   working_directory: ~/workspace/app
   docker:
-    - image: circleci/node:8-browsers
+    - image: circleci/node:12.0.0-browsers
 
 # Yarn cache key
-cache_var: &cache_key yarn-packages-{{ .Branch }}-{{ checksum "yarn.lock" }}
+cache_var: &cache_key yarn-packages-v2-{{ .Branch }}-{{ checksum "yarn.lock" }}
 
 # Install yarn packages
 yarn_install_var: &yarn_install
@@ -19,10 +19,10 @@ yarn_install_var: &yarn_install
 # Save yarn cache
 save_cache_var: &save_cache
   save_cache:
-    name: Save Yarn Package Cache
+    name: Save Yarn Package Cache and Cypress binary
     key: *cache_key
     paths:
-      - ~/.cache/yarn
+      - ~/.cache
       - node_modules
 
 # Restore yarn cache
@@ -31,8 +31,8 @@ restore_cache_var: &restore_cache
     name: Restore Yarn Package Cache
     keys:
       - *cache_key
-      - yarn-packages-master
-      - yarn-packages-
+      - yarn-packages-v2-master
+      - yarn-packages-v2
 
 # Persist the whole working space so we can share it between jobs
 persist_workspace_var: &persist_workspace
@@ -75,17 +75,22 @@ jobs:
       - store_artifacts:
           path: ngxs-core.tgz
           destination: dist/ngxs-core.tgz
-      - store_artifacts:
-          path: docs
-          destination: docs
 
-  lint:
+  tslint:
     <<: *job_defaults
     steps:
       - *attach_workspace
       - run:
-          name: Lint
+          name: Run TSLint analyzer
           command: yarn lint
+
+  eslint:
+    <<: *job_defaults
+    steps:
+      - *attach_workspace
+      - run:
+          name: Run ESLint analyzer
+          command: yarn eslint
 
   unit_tests:
     <<: *job_defaults
@@ -114,12 +119,25 @@ jobs:
       - run:
           name: Integration Tests
           command: yarn test:ci:integration
-      # - *persist_coverage // we don't run code coverage for integration tests
+      - *persist_workspace
+      - store_artifacts:
+          path: dist-integration
+          destination: dist-integration
+
+  cypress:
+    <<: *job_defaults
+    steps:
+      - *attach_workspace
+      - *restore_cache
+      - run:
+          name: Run E2E tests
+          command: yarn test:ci:e2e
 
   integration_ssr_tests:
     <<: *job_defaults
     steps:
       - *attach_workspace
+      - *restore_cache
       - run:
           name: Integration Tests
           command: yarn test:ci:integration:ssr
@@ -131,7 +149,34 @@ jobs:
       - *attach_workspace
       - run:
           name: Integration Tests
-          command: yarn run integration:ng5
+          command: yarn integration:ng5
+      # - *persist_coverage // we don't run code coverage for integration tests
+
+    integration_ivy_tests:
+      <<: *job_defaults
+      steps:
+        - *attach_workspace
+        - run:
+            name: Integration Tests
+            command: yarn integration:ivy
+        # - *persist_coverage // we don't run code coverage for integration tests
+
+  integration_test_types:
+    <<: *job_defaults
+    steps:
+      - *attach_workspace
+      - run:
+          name: Test types
+          command: yarn test:types
+      # - *persist_coverage // we don't run code coverage for integration tests
+
+  bundlesize:
+    <<: *job_defaults
+    steps:
+      - *attach_workspace
+      - run:
+          name: Check the size of NGXS bundle
+          command: yarn bundlesize
       # - *persist_coverage // we don't run code coverage for integration tests
 
   upload_coverage:
@@ -182,7 +227,11 @@ workflows:
             tags:
               only: /.*/
 
-      - lint:
+      - tslint:
+          requires:
+            - build
+
+      - eslint:
           requires:
             - build
 
@@ -194,11 +243,23 @@ workflows:
           requires:
             - build
 
+      - cypress:
+          requires:
+            - integration_tests
+
       - integration_ssr_tests:
           requires:
             - build
 
       - integration_ng5_tests:
+          requires:
+            - build
+
+      - integration_test_types:
+          requires:
+            - build
+
+      - bundlesize:
           requires:
             - build
 
@@ -208,6 +269,8 @@ workflows:
             - integration_tests
             - integration_ssr_tests
             - integration_ng5_tests
+            - integration_test_types
+            - bundlesize
 
       # Publish @dev builds if no tag is specified
       - publish_dev_build_to_npm:
@@ -222,6 +285,8 @@ workflows:
             - integration_tests
             - integration_ssr_tests
             - integration_ng5_tests
+            - integration_test_types
+            - bundlesize
 
       # Publish package.version @latest when a v.* git tag is present
       - publish_tagged_build_to_npm:
@@ -235,3 +300,5 @@ workflows:
             - integration_tests
             - integration_ssr_tests
             - integration_ng5_tests
+            - integration_test_types
+            - bundlesize
