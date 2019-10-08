@@ -1,33 +1,33 @@
 // tslint:disable:unified-signatures
-import { Injectable, Type, Injector, isDevMode } from '@angular/core';
+import { Injectable, Injector, isDevMode, Type } from '@angular/core';
 import { Observable, of, Subscription } from 'rxjs';
 import { catchError, distinctUntilChanged, map, take } from 'rxjs/operators';
 
-import { getSelectorFn, getSelectorFunction } from './utils/selector-utils';
-import { InternalStateOperations } from './internal/state-operations';
-import { StateStream } from './internal/state-stream';
-import { NgxsConfig, META_KEY } from './symbols';
+import { UpdateState } from './actions/actions';
+import { NgxsAction } from './actions/base.action';
+import { ActionHandlerMetaData } from './actions/symbols';
+import { NGXS_MAIN_CONTEXT } from './common/consts';
+import { onDestroyDefined } from './common/interfaces';
+import { SelectLocation } from './common/selectLocation';
 import { InternalNgxsExecutionStrategy } from './execution/internal-ngxs-execution-strategy';
-import { leaveNgxs } from './operators/leave-ngxs';
 import {
-  ObjectKeyMap,
-  StateClass,
-  StateOperations,
-  MappedStore,
-  StateLocation,
-  propGetter,
-  isObject,
   getSelectorMetadata,
-  SelectorMetaDataModel
+  isObject,
+  MappedStore,
+  ObjectKeyMap,
+  propGetter,
+  SelectorMetaDataModel,
+  StateClass,
+  StateLocation,
+  StateOperations,
 } from './internal/internals';
 import { StateFactory } from './internal/state-factory';
-import { SelectLocation } from './common/selectLocation';
-import { UpdateState } from './actions/actions';
-import { NGXS_MAIN_CONTEXT } from './common/consts';
-import { ActionHandlerMetaData } from './actions/symbols';
+import { InternalStateOperations } from './internal/state-operations';
+import { StateStream } from './internal/state-stream';
+import { leaveNgxs } from './operators/leave-ngxs';
+import { META_KEY, NgxsConfig } from './symbols';
+import { getSelectorFn, getSelectorFunction } from './utils/selector-utils';
 import { setValue } from './utils/utils';
-import { NgxsAction } from './actions/base.action';
-import { onDestroyDefined } from './common/interfaces';
 
 @Injectable()
 export class Store {
@@ -52,14 +52,12 @@ export class Store {
   dispatch(event: any | any[]): Observable<any> {
     return this._internalStateOperations.getRootStateOperations().dispatch(event);
   }
+
   /**
    * Allows to dispatch action with State Location specified, so we can specifiy on which part of
    * State data tree we want action to work
    */
-  dispatchInLocation(
-    event: NgxsAction | NgxsAction[],
-    location: SelectLocation
-  ): Observable<any> {
+  dispatchInLocation(event: NgxsAction | NgxsAction[], location: SelectLocation): Observable<any> {
     if (Array.isArray(event)) {
       event.forEach(evnt => (evnt.location = location));
     } else {
@@ -112,21 +110,16 @@ export class Store {
   }
 
   /** Allows to select slice of data from the store from specified location */
-  selectInContext<T>(
-    selector: (state: any, ...states: any[]) => T,
-    filter: SelectLocation
-  ): Observable<T>;
+  selectInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
   selectInContext(selector: string | any, filter: SelectLocation): Observable<any>;
   selectInContext(selector: any, filter: SelectLocation): Observable<any> {
-    const selectorFn = getSelectorFn(
-      selector,
-      this._stateFactory.getLocationPath(filter, selector)
-    );
+    const selectorFn = getSelectorFn(selector, this._stateFactory.getLocationPath(filter, selector));
     return this._stateStream.pipe(
       map(selectorFn),
       catchError(err => {
         // if error is TypeError we swallow it to prevent usual errors with property access
         if (err instanceof TypeError) {
+          console.error(`AF selector doesn't exist, error: ${err}, ${filter.path}`);
           return of(undefined);
         }
         // rethrow other errors
@@ -136,12 +129,8 @@ export class Store {
       leaveNgxs(this._internalExecutionStrategy)
     );
   }
-
   /** Allows to select one slice of data from the store from specified location */
-  selectOnceInContext<T>(
-    selector: (state: any, ...states: any[]) => T,
-    filter: SelectLocation
-  ): Observable<T>;
+  selectOnceInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T>;
   selectOnceInContext(selector: string | any, filter: SelectLocation): Observable<any>;
   selectOnceInContext(selector: any, filter: SelectLocation): Observable<any> {
     return this.selectInContext(selector, filter).pipe(take(1));
@@ -150,28 +139,16 @@ export class Store {
   /**
    * Select a snapshot from the state  from specified location
    */
-  selectSnapshotInContext<T>(
-    selector: (state: any, ...states: any[]) => T,
-    filter: SelectLocation
-  ): T;
+  selectSnapshotInContext<T>(selector: (state: any, ...states: any[]) => T, filter: SelectLocation): T;
   selectSnapshotInContext(selector: string | any, filter: SelectLocation): any;
   selectSnapshotInContext(selector: any, filter: SelectLocation): any {
-    const selectorFn = getSelectorFn(
-      selector,
-      this._stateFactory.getLocationPath(filter, selector)
-    );
+    const selectorFn = getSelectorFn(selector, this._stateFactory.getLocationPath(filter, selector));
     return selectorFn(this._stateStream.getValue());
   }
 
-  selectInStateContext<T>(
-    stateClass: any,
-    selector: (state: any, ...states: any[]) => T,
-    filter: SelectLocation
-  ): Observable<T> {
+  selectInStateContext<T>(stateClass: any, selector: (state: any, ...states: any[]) => T, filter: SelectLocation): Observable<T> {
     const locationPath = this._stateFactory.getLocationPath(filter, selector);
-    const state = this._stateFactory.states.find(
-      p => p.instance.constructor.name === stateClass.name
-    );
+    const state = this._stateFactory.states.find(p => p.instance.constructor.name === stateClass.name);
     const selectorMData = getSelectorMetadata(selector);
     const selectorMetadata = state!.selectors[selectorMData.selectorName!];
 
@@ -302,6 +279,7 @@ export class Store {
     stateOperations.setState({ ...cur });
     stateOperations.dispatch(new UpdateState()).subscribe(() => {});
   }
+
   /**
    * Checks if given state is last instance in Store
    */
@@ -334,8 +312,7 @@ export class Store {
     if (inPath) {
       parentMetaData = this._stateFactory.states.find(p => p.depth === parent);
       if (!parentMetaData) {
-        parentNotFound =
-          'Cannot find parent state in path ' + parent + ' for child state ' + childName;
+        parentNotFound = `Cannot find parent state in path ${parent} for child state ${childName}`;
       }
     } else {
       if (location.path) {
@@ -343,26 +320,12 @@ export class Store {
           p => p.depth.startsWith(location.path) && p.instance.constructor.name === parentType
         );
         if (!parentMetaData) {
-          parentNotFound =
-            'Connot find parent ' +
-            parentType +
-            ' state in location path ' +
-            location.path +
-            ' for child state ' +
-            childName;
+          parentNotFound = `Connot find parent ${parentType} state in location path ${location.path} for child state ${childName}`;
         }
       } else {
-        parentMetaData = this._stateFactory.states.find(
-          p => p.name === parent && p.context === location.context
-        );
+        parentMetaData = this._stateFactory.states.find(p => p.name === parent && p.context === location.context);
         if (!parentMetaData) {
-          parentNotFound =
-            'Cannot find parent  ' +
-            parent +
-            ' state in context ' +
-            location.context +
-            ' for child state ' +
-            childName;
+          parentNotFound = `Cannot find parent  ${parent} state in context ${location.context} for child state ${childName}`;
         }
       }
     }
@@ -393,7 +356,7 @@ export class Store {
     const has = this._stateFactory.states.find(s => s.depth === depth);
     if (has) {
       if (isDevMode()) {
-        console.error('State ' + childName + ' allready added in location ' + depth);
+        console.error(`State name: ${childName} already added in location ${depth}`);
       }
     } else {
       let def;
@@ -427,28 +390,10 @@ export class Store {
       if (children) {
         children.forEach((item: any, index: number) => {
           if (inPath) {
-            mappedStores.push(
-              ...this.addChildInternal(
-                depth,
-                child.name,
-                item,
-                item[META_KEY].name,
-                stateOperations,
-                location,
-                inPath
-              )
-            );
+            mappedStores.push(...this.addChildInternal(depth, child.name, item, item[META_KEY].name, stateOperations, location, inPath));
           } else {
             mappedStores.push(
-              ...this.addChildInternal(
-                childName,
-                child.name,
-                item,
-                item[META_KEY].name,
-                stateOperations,
-                location,
-                inPath
-              )
+              ...this.addChildInternal(childName, child.name, item, item[META_KEY].name, stateOperations, location, inPath)
             );
           }
         });
@@ -476,16 +421,7 @@ export class Store {
       childName = child[META_KEY].name;
     }
     const loc = new SelectLocation(NGXS_MAIN_CONTEXT, '', '', false);
-    mappedStores.push(
-      ...this.addChildInternal(
-        parentLocalName,
-        parent.name,
-        child,
-        childName!,
-        stateOperations,
-        loc
-      )
-    );
+    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName!, stateOperations, loc));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       // this._stateFactory.invokeInit(mappedStores);
@@ -495,13 +431,7 @@ export class Store {
   /**
    * Adds child state in given context
    */
-  addChildInContext(
-    parent: any,
-    filter: SelectLocation,
-    child: any,
-    childName?: string,
-    parentName?: string
-  ) {
+  addChildInContext(parent: any, filter: SelectLocation, child: any, childName?: string, parentName?: string) {
     const stateOperations = this._internalStateOperations.getRootStateOperations();
     const mappedStores: MappedStore[] = [];
     const parentMetaData = this._stateFactory.states.filter(
@@ -517,29 +447,16 @@ export class Store {
         parentLocalName = parent[META_KEY].name;
       } else {
         if (isDevMode()) {
-          console.error(
-            'State class ' + parent.name + ' added more than once in context ' + filter.context
-          );
+          console.error(`State class ${parent.name} added more than once in context ${filter.context}`);
         } else {
-          throw new Error(
-            'State class ' + parent.name + ' added more than once in context ' + filter.context
-          );
+          throw new Error(`State class ${parent.name} added more than once in context ${filter.context}`);
         }
       }
     }
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(
-      ...this.addChildInternal(
-        parentLocalName,
-        parent.name,
-        child,
-        childName!,
-        stateOperations,
-        filter
-      )
-    );
+    mappedStores.push(...this.addChildInternal(parentLocalName, parent.name, child, childName!, stateOperations, filter));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       // this._stateFactory.invokeInit(mappedStores);
@@ -555,17 +472,7 @@ export class Store {
     if (!childName) {
       childName = child[META_KEY].name;
     }
-    mappedStores.push(
-      ...this.addChildInternal(
-        location.path,
-        parent.name,
-        child,
-        childName!,
-        stateOperations,
-        location,
-        true
-      )
-    );
+    mappedStores.push(...this.addChildInternal(location.path, parent.name, child, childName!, stateOperations, location, true));
 
     stateOperations.dispatch(new UpdateState()).subscribe(() => {
       // this._stateFactory.invokeInit(mappedStores);
@@ -576,9 +483,7 @@ export class Store {
    * Searches for state with given name added in root path and returns path to that state
    */
   getStateInPath(root: SelectLocation, stateName: string): SelectLocation {
-    const state = this._stateFactory.states.find(
-      p => p.depth.startsWith(root.path) && p.name === stateName
-    );
+    const state = this._stateFactory.states.find(p => p.depth.startsWith(root.path) && p.name === stateName);
     if (state) {
       return SelectLocation.filterByPath(state.depth);
     }
@@ -588,7 +493,7 @@ export class Store {
    * Return state location based on name and parent path
    */
   getState(root: SelectLocation, stateName: string): SelectLocation {
-    const path = root.path + '.' + stateName;
+    const path = `${root.path}.${stateName}`;
     const state = this._stateFactory.states.find(p => p.depth === path);
     if (state) {
       return SelectLocation.filterByPath(state.depth);
@@ -606,14 +511,10 @@ export class Store {
     const has = this._stateFactory.states.find(s => s.depth === location.path);
     if (!has) {
       if (isDevMode()) {
-        console.error(
-          'State in location ' + location.path + ' dont exists. Cannot delete state'
-        );
+        console.error(`State in location ${location.path} dont exists. Cannot delete state`);
       }
     } else {
-      const checkedChildren = this._stateFactory.states.filter(p =>
-        p.depth.startsWith(has.depth)
-      );
+      const checkedChildren = this._stateFactory.states.filter(p => p.depth.startsWith(has.depth));
       for (const innerChild of checkedChildren) {
         const index = this._stateFactory.states.indexOf(innerChild);
         this._stateFactory.states.splice(index, 1);
@@ -637,9 +538,7 @@ export class Store {
         console.error('State of name ' + childName + ' dont exists. Cannot delete state');
       }
     } else {
-      const checkedChildren = this._stateFactory.states.filter(p =>
-        p.depth.startsWith(has.depth)
-      );
+      const checkedChildren = this._stateFactory.states.filter(p => p.depth.startsWith(has.depth));
       for (const innerChild of checkedChildren) {
         const index = this._stateFactory.states.indexOf(innerChild);
         this._stateFactory.states.splice(index, 1);

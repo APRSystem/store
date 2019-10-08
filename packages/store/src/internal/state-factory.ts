@@ -217,7 +217,7 @@ export class StateFactory {
       if (action instanceof NgxsAction) {
         if (action.kind !== ActionKind.akEvent) {
           if (isDevMode()) {
-            console.error('Action ' + action.constructor.name + ' was not executed');
+            console.error(`Action ${action.constructor.name} was not executed`);
           }
         }
       }
@@ -285,6 +285,14 @@ export class StateFactory {
     if (!location.searchInTree) {
       if (location.name !== '') {
         let result = '';
+        // TODO Sz zoreintowac sie czy szukanie po name ma sens. bo przekazywany jest selektor a nie state do fukcji
+        // const tab = Array.from(storeMeta.selectsFromAppState.keys()).filter((key: StateLocation) => {
+        //   if (key.name === location.name) result = key.path;
+        //   return result !== '';
+        // });
+        // if (isDevMode() && tab.length > 1) {
+        //   console.error(`Location name: ${location.name} found more than one`);
+        // }
         Array.from(storeMeta.selectsFromAppState.keys()).some((key: StateLocation) => {
           if (key.name === location.name) result = key.path;
           return result !== '';

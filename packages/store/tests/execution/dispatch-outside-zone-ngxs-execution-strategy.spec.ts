@@ -8,12 +8,7 @@ import {
   PlatformRef
 } from '@angular/core';
 import { TestBed, TestModuleMetadata, async } from '@angular/core/testing';
-import {
-  ɵDomAdapter as DomAdapter,
-  ɵBrowserDomAdapter as BrowserDomAdapter,
-  BrowserModule,
-  DOCUMENT
-} from '@angular/platform-browser';
+import { ɵDomAdapter as DomAdapter, ɵBrowserDomAdapter as BrowserDomAdapter, BrowserModule } from '@angular/platform-browser';import { DOCUMENT } from "@angular/common";
 
 import { Observable } from 'rxjs';
 

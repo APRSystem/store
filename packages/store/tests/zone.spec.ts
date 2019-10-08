@@ -8,12 +8,7 @@ import {
   NgModuleRef
 } from '@angular/core';
 import { TestBed, async, fakeAsync } from '@angular/core/testing';
-import {
-  ɵDomAdapter as DomAdapter,
-  ɵBrowserDomAdapter as BrowserDomAdapter,
-  BrowserModule,
-  DOCUMENT
-} from '@angular/platform-browser';
+import { ɵDomAdapter as DomAdapter, ɵBrowserDomAdapter as BrowserDomAdapter, BrowserModule } from '@angular/platform-browser';import { DOCUMENT } from "@angular/common";
 
 import { Observable, Subscription } from 'rxjs';
 import { take } from 'rxjs/operators';

@@ -200,7 +200,7 @@ function createTestModule(
           },
           {
             path: 'load',
-            loadChildren: 'test',
+            loadChildren: () => import('test').then(m => m.default),
             canLoad: ['CanLoadNext']
           }
         ],

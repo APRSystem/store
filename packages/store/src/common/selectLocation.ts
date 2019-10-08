@@ -11,7 +11,6 @@ export class SelectLocation {
   static filterByPath(path: string): SelectLocation {
     return new SelectLocation('', '', path, false);
   }
-
   static filterByContext(context: string, name: string): SelectLocation {
     return new SelectLocation(context, name, '', true);
   }
