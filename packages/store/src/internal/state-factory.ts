@@ -1,7 +1,15 @@
 import { Inject, Injectable, Injector, isDevMode, Optional, SkipSelf } from '@angular/core';
 import { INITIAL_STATE_TOKEN, PlainObjectOf } from '@ngxs/store/internals';
 import { forkJoin, from, Observable, of, throwError } from 'rxjs';
-import { catchError, defaultIfEmpty, filter, map, mergeMap, shareReplay, takeUntil } from 'rxjs/operators';
+import {
+  catchError,
+  defaultIfEmpty,
+  filter,
+  map,
+  mergeMap,
+  shareReplay,
+  takeUntil
+} from 'rxjs/operators';
 
 import { ActionContext, ActionStatus, InternalActions } from '../actions-stream';
 import { NgxsAction } from '../actions/base.action';
@@ -29,7 +37,7 @@ import {
   StateLocation,
   StatesAndDefaults,
   StatesByName,
-  topologicalSort,
+  topologicalSort
 } from './internals';
 
 /**
@@ -110,6 +118,7 @@ export class StateFactory {
       const stateMap: MappedStore = {
         name,
         depth,
+        isInitialised: false,
         actions: meta.actions,
         selectors: meta.selectors,
         instance: this._injector.get(stateClass),
@@ -136,12 +145,13 @@ export class StateFactory {
   addAndReturnDefaults(stateClasses: StateClassInternal[]): StatesAndDefaults {
     const classes: StateClassInternal[] = stateClasses || [];
 
-    const states: MappedStore[] = this.add(classes);
-    const defaults = states.reduce(
-      (result: any, meta: MappedStore) => setValue(result, meta.depth, meta.defaults),
+    const mappedStores: MappedStore[] = this.add(classes);
+    const defaults = mappedStores.reduce(
+      (result: any, mappedStore: MappedStore) =>
+        setValue(result, mappedStore.depth, mappedStore.defaults),
       {}
     );
-    return { defaults, states };
+    return { defaults, states: mappedStores };
   }
 
   /**
@@ -330,7 +340,8 @@ export class StateFactory {
     if (location.name) {
       if (
         location.context &&
-        (location.name === mappedStore.name && location.context === mappedStore.context)
+        location.name === mappedStore.name &&
+        location.context === mappedStore.context
       ) {
         return true;
       } else {

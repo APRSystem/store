@@ -1,13 +1,13 @@
-import {
-  State,
-  Action,
-  getStoreMetadata,
-  getSelectorMetadata,
-  Selector,
-  NgxsModule,
-  SelectorOptions
-} from '@ngxs/store';
 import { TestBed } from '@angular/core/testing';
+import {
+  Action,
+  getSelectorMetadata,
+  getStoreMetadata,
+  NgxsModule,
+  Selector,
+  SelectorOptions,
+  State
+} from '@ngxs/store';
 
 import { SelectorMetaDataModel } from '../src/internal/internals';
 import { getSelectorFn } from '../src/utils/selector-utils';
@@ -71,7 +71,6 @@ describe('Ensure metadata', () => {
         },
         defaults: 0,
         path: null,
-        instance: null,
         selectFromAppState: null,
         children: [MyCounterState]
       });
@@ -84,8 +83,7 @@ describe('Ensure metadata', () => {
         defaults: 1,
         path: null,
         selectFromAppState: null,
-        children: undefined,
-        instance: null
+        children: undefined
       });
     });
 

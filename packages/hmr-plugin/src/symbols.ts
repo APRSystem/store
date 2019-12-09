@@ -1,6 +1,10 @@
 import { StateContext } from '@ngxs/store';
 import { NgModuleRef } from '@angular/core';
 
+export const enum HmrRuntime {
+  Status = 'NGXS_HMR_LIFECYCLE_STATUS'
+}
+
 export interface NgxsHmrSnapshot {
   [key: string]: any;
 }
@@ -26,14 +30,14 @@ export type BootstrapModuleFn<T = any> = () => Promise<NgModuleRef<T>>;
 export interface NgxsHmrOptions {
   /**
    * @description
-   * clear log after each hmr update
+   * Clear logs after each refresh
    * (default: true)
    */
   autoClearLogs?: boolean;
 
   /**
    * @description
-   * deferred time before loading the old state
+   * Deferred time before loading the old state
    * (default: 100ms)
    */
   deferTime?: number;

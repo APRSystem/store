@@ -1,10 +1,8 @@
 /* tslint:disable:max-line-length */
 /// <reference types="@types/jest" />
 import { TestBed } from '@angular/core/testing';
+import { Action, InitState, NgxsModule, State, Store, UpdateState } from '@ngxs/store';
 
-import { Action } from '../../src/decorators/action';
-import { InitState, UpdateState } from '../../src/actions/actions';
-import { NgxsModule, State, Store } from '../../src/public_api';
 import { assertType } from './utils/assert-type';
 
 describe('[TEST]: Action Types', () => {
@@ -13,13 +11,13 @@ describe('[TEST]: Action Types', () => {
   class FooAction {
     public type = 'FOO';
 
-    constructor(public payload: string) { }
+    constructor(public payload: string) {}
   }
 
   class BarAction {
     public static type = 'BAR';
 
-    constructor(public payload: string) { }
+    constructor(public payload: string) {}
   }
 
   beforeAll(() => {
@@ -41,7 +39,24 @@ describe('[TEST]: Action Types', () => {
     assertType(() => Action(new BarAction('foo'))); // $ExpectError
     assertType(() => Action([{ foo: 'bar' }])); // $ExpectError
     assertType(() => Action([InitState, UpdateState], { foo: 'bar' })); // $ExpectError
-    assertType(() => { Action(); }); // $ExpectError
+    assertType(() => Action()); // $ExpectError
+  });
+
+  it('should be success or compile error when property type is missing', () => {
+    assertType(() => Action({})); // $ExpectError
+
+    class MyActionWithMissingType {}
+    assertType(() => Action([MyActionWithMissingType])); // $ExpectError
+
+    class MyAction {
+      public static type = 'MY_ACTION';
+    }
+    assertType(() => Action([MyAction])); // $ExpectType MethodDecorator
+
+    class RequiredOnlyStaticType {
+      public type = 'anything';
+    }
+    assertType(() => Action([RequiredOnlyStaticType])); // $ExpectError
   });
 
   it('should be correct type in dispatch', () => {
@@ -49,6 +64,7 @@ describe('[TEST]: Action Types', () => {
     assertType(() => store.dispatch(new FooAction('payload'))); // $ExpectError Actions
     assertType(() => store.dispatch(new BarAction('foo'))); // $ExpectError Actions
     assertType(() => store.dispatch()); // $ExpectError
+    assertType(() => store.dispatch({})); // $ExpectType Observable<any>
   });
 
   it('should prevent invalid types passed through', () => {
@@ -61,10 +77,10 @@ describe('[TEST]: Action Types', () => {
       defaults: 0
     })
     class MyState {
-      @Action(Increment) increment1() { } // $ExpectType () => void
-      @Action({ type: 'INCREMENT' }) increment2() { } // $ExpectType () => void
-      @Action(new Increment()) increment3() { } // $ExpectError
-      @Action({ foo: 123 }) increment4() { } // $ExpectError
+      @Action(Increment) increment1() {} // $ExpectType () => void
+      @Action({ type: 'INCREMENT' }) increment2() {} // $ExpectType () => void
+      @Action(new Increment()) increment3() {} // $ExpectError
+      @Action({ foo: 123 }) increment4() {} // $ExpectError
     }
 
     assertType(() => store.dispatch(new Increment())); // $ExpectType Observable<any>

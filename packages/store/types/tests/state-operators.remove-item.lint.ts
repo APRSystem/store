@@ -1,6 +1,6 @@
 /* tslint:disable:max-line-length */
 /// <reference types="@types/jest" />
-import { removeItem, patch } from '../../operators/src';
+import { patch, removeItem } from '@ngxs/store/operators';
 
 describe('[TEST]: the removeItem State Operator', () => {
   it('should have the following valid usages', () => {

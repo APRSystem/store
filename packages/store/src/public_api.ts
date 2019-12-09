@@ -29,11 +29,14 @@ export {
   StateOperator,
   NgxsOnInit,
   NgxsAfterBootstrap,
-  NgxsModuleOptions
+  NgxsOnChanges,
+  NgxsModuleOptions,
+  NgxsSimpleChange
 } from './symbols';
-export { Selector } from './decorators/selector';
+export { Selector } from './decorators/selector/selector';
 export { getActionTypeFromInstance, actionMatcher } from './utils/utils';
 export { createSelector } from './utils/selector-utils';
 export { NgxsExecutionStrategy } from './execution/symbols';
 export { ActionType, ActionOptions } from './actions/symbols';
 export { NoopNgxsExecutionStrategy } from './execution/noop-ngxs-execution-strategy';
+export { StateToken } from './state-token/state-token';

@@ -16,6 +16,23 @@ import {
   StateClass
 } from '@ngxs/store/internals';
 
+import { Actions, InternalActions } from './actions-stream';
+import { SelectFactory } from './decorators/select/select-factory';
+import { DispatchOutsideZoneNgxsExecutionStrategy } from './execution/dispatch-outside-zone-ngxs-execution-strategy';
+import { InternalNgxsExecutionStrategy } from './execution/internal-ngxs-execution-strategy';
+import { NGXS_EXECUTION_STRATEGY } from './execution/symbols';
+import { HostEnvironment } from './host-environment/host-environment';
+import { ConfigValidator } from './internal/config-validator';
+import { InternalDispatchedActionResults, InternalDispatcher } from './internal/dispatcher';
+import { LifecycleStateManager } from './internal/lifecycle-state-manager';
+import { StateContextFactory } from './internal/state-context-factory';
+import { StateFactory } from './internal/state-factory';
+import { InternalStateOperations } from './internal/state-operations';
+import { StateStream } from './internal/state-stream';
+import { NgxsFeatureModule } from './modules/ngxs-feature.module';
+import { NgxsRootModule } from './modules/ngxs-root.module';
+import { PluginManager } from './plugin-manager';
+import { Store } from './store';
 import {
   FEATURE_STATE_TOKEN,
   NG_DEV_MODE,
@@ -24,23 +41,6 @@ import {
   NgxsModuleOptions,
   ROOT_STATE_TOKEN
 } from './symbols';
-import { NGXS_EXECUTION_STRATEGY } from './execution/symbols';
-import { StateFactory } from './internal/state-factory';
-import { StateContextFactory } from './internal/state-context-factory';
-import { Actions, InternalActions } from './actions-stream';
-import { LifecycleStateManager } from './internal/lifecycle-state-manager';
-import { InternalDispatchedActionResults, InternalDispatcher } from './internal/dispatcher';
-import { InternalStateOperations } from './internal/state-operations';
-import { Store } from './store';
-import { SelectFactory } from './decorators/select/select-factory';
-import { StateStream } from './internal/state-stream';
-import { PluginManager } from './plugin-manager';
-import { NgxsRootModule } from './modules/ngxs-root.module';
-import { NgxsFeatureModule } from './modules/ngxs-feature.module';
-import { DispatchOutsideZoneNgxsExecutionStrategy } from './execution/dispatch-outside-zone-ngxs-execution-strategy';
-import { InternalNgxsExecutionStrategy } from './execution/internal-ngxs-execution-strategy';
-import { HostEnvironment } from './host-environment/host-environment';
-import { ConfigValidator } from './internal/config-validator';
 
 /**
  * Ngxs Module
@@ -55,7 +55,7 @@ export class NgxsModule {
   public static forRoot(
     states: StateClass[] = [],
     options: NgxsModuleOptions = {}
-  ): ModuleWithProviders {
+  ): ModuleWithProviders<NgxsRootModule> {
     return {
       ngModule: NgxsRootModule,
       providers: [
@@ -84,7 +84,7 @@ export class NgxsModule {
   /**
    * Feature module factory
    */
-  public static forFeature(states: StateClass[] = []): ModuleWithProviders {
+  public static forFeature(states: StateClass[] = []): ModuleWithProviders<NgxsFeatureModule> {
     return {
       ngModule: NgxsFeatureModule,
       providers: [
@@ -106,12 +106,12 @@ export class NgxsModule {
   ): Provider[] {
     return [
       {
-        provide: NG_DEV_MODE,
-        useFactory: NgxsModule.isAngularInTestMode
+        provide: NG_TEST_MODE,
+        useValue: isAngularInTestMode
       },
       {
-        provide: NG_TEST_MODE,
-        useFactory: NgxsModule.isAngularDevMode
+        provide: NG_DEV_MODE,
+        useValue: isDevMode
       },
       {
         provide: NGXS_EXECUTION_STRATEGY,
@@ -157,14 +157,6 @@ export class NgxsModule {
 
   private static appBootstrapListenerFactory(bootstrapper: NgxsBootstrapper): Function {
     return () => bootstrapper.bootstrap();
-  }
-
-  private static isAngularInTestMode(): Function {
-    return () => isAngularInTestMode();
-  }
-
-  private static isAngularDevMode(): Function {
-    return () => isDevMode();
   }
 
   private static getInitialState() {

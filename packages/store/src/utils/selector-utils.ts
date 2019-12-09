@@ -8,7 +8,7 @@ import {
   globalSelectorOptions,
   SelectFromState,
   SelectorMetaDataModel,
-  SharedSelectorOptions,
+  SharedSelectorOptions
 } from '../internal/internals';
 import { SELECTOR_META_KEY } from '../symbols';
 

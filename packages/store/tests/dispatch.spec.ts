@@ -3,11 +3,7 @@ import { async, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { of, throwError, timer } from 'rxjs';
 import { delay, skip, tap } from 'rxjs/operators';
 
-import { State } from '../src/decorators/state';
-import { Action } from '../src/decorators/action';
-import { Store } from '../src/store';
-import { NgxsModule } from '../src/module';
-import { StateContext } from '../src/symbols';
+import { Action, NgxsExecutionStrategy, NgxsModule, State, StateContext, Store } from '..';
 import { NoopErrorHandler } from './helpers/utils';
 
 describe('Dispatch', () => {
@@ -52,12 +48,82 @@ describe('Dispatch', () => {
 
     const store: Store = TestBed.get(Store);
 
-    store
-      .dispatch(new Increment())
-      .subscribe(() => {}, () => observedCalls.push('observer.error(...)'));
+    store.dispatch(new Increment()).subscribe(
+      () => {},
+      () => observedCalls.push('observer.error(...)')
+    );
 
     expect(observedCalls).toEqual(['handleError(...)', 'observer.error(...)']);
   }));
+
+  it('should not propagate an unhandled exception', () => {
+    // Arrange
+    const message = 'This is an eval error...';
+
+    @State<number>({
+      name: 'counter',
+      defaults: 0
+    })
+    class CounterState {
+      @Action(Increment)
+      increment() {
+        throw new EvalError(message);
+      }
+    }
+
+    @Injectable()
+    class FakeExecutionStrategy implements NgxsExecutionStrategy {
+      enter<T>(func: () => T): T {
+        return func();
+      }
+
+      leave<T>(func: () => T): T {
+        return func();
+      }
+    }
+
+    @Injectable()
+    class CustomErrorHandler implements ErrorHandler {
+      handleError(error: Error): void {
+        throw error;
+      }
+    }
+
+    // Act
+    TestBed.configureTestingModule({
+      imports: [
+        NgxsModule.forRoot([CounterState], {
+          executionStrategy: FakeExecutionStrategy
+        })
+      ],
+      providers: [
+        {
+          provide: ErrorHandler,
+          useClass: CustomErrorHandler
+        }
+      ]
+    });
+
+    const store: Store = TestBed.get(Store);
+
+    // `typeof message | null` as we don't know will be assigned or not.
+    // Let's test it out at the end
+    let thrownMessage: typeof message | null = null;
+
+    // Start spying after module is initialized, not before
+    jest.spyOn(FakeExecutionStrategy.prototype, 'leave').mockImplementationOnce(func => {
+      try {
+        return func();
+      } catch (e) {
+        thrownMessage = e.message;
+      }
+    });
+
+    store.dispatch(new Increment());
+
+    // Assert
+    expect(thrownMessage).toBeNull();
+  });
 
   it('should run outside zone and return back in zone', async(() => {
     @State<number>({
@@ -672,13 +738,11 @@ describe('Dispatch', () => {
         const store: Store = TestBed.get(Store);
 
         const subscriptionsCalled: string[] = [];
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('previous'),
-            () => subscriptionsCalled.push('previous error'),
-            () => subscriptionsCalled.push('previous complete')
-          );
+        store.dispatch(new Increment()).subscribe(
+          () => subscriptionsCalled.push('previous'),
+          () => subscriptionsCalled.push('previous error'),
+          () => subscriptionsCalled.push('previous complete')
+        );
         store.dispatch(new Increment());
         resolvers[0]();
         resolvers[1]();
@@ -707,20 +771,16 @@ describe('Dispatch', () => {
         const store: Store = TestBed.get(Store);
 
         const subscriptionsCalled: string[] = [];
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('previous'),
-            () => subscriptionsCalled.push('previous error'),
-            () => subscriptionsCalled.push('previous complete')
-          );
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('latest'),
-            () => subscriptionsCalled.push('latest error'),
-            () => subscriptionsCalled.push('latest complete')
-          );
+        store.dispatch(new Increment()).subscribe(
+          () => subscriptionsCalled.push('previous'),
+          () => subscriptionsCalled.push('previous error'),
+          () => subscriptionsCalled.push('previous complete')
+        );
+        store.dispatch(new Increment()).subscribe(
+          () => subscriptionsCalled.push('latest'),
+          () => subscriptionsCalled.push('latest error'),
+          () => subscriptionsCalled.push('latest complete')
+        );
         resolvers[0]();
         resolvers[1]();
         tick(0);
@@ -753,13 +813,11 @@ describe('Dispatch', () => {
         const store: Store = TestBed.get(Store);
 
         const subscriptionsCalled: string[] = [];
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('next'),
-            error => subscriptionsCalled.push('error: ' + error),
-            () => subscriptionsCalled.push('complete')
-          );
+        store.dispatch(new Increment()).subscribe(
+          () => subscriptionsCalled.push('next'),
+          error => subscriptionsCalled.push('error: ' + error),
+          () => subscriptionsCalled.push('complete')
+        );
         expect(subscriptionsCalled).toEqual(['error: This is my error message!']);
       }));
     });
@@ -785,13 +843,11 @@ describe('Dispatch', () => {
         const store: Store = TestBed.get(Store);
 
         const subscriptionsCalled: string[] = [];
-        store
-          .dispatch(new Increment())
-          .subscribe(
-            () => subscriptionsCalled.push('next'),
-            (error: Error) => subscriptionsCalled.push('error: ' + error.message),
-            () => subscriptionsCalled.push('complete')
-          );
+        store.dispatch(new Increment()).subscribe(
+          () => subscriptionsCalled.push('next'),
+          (error: Error) => subscriptionsCalled.push('error: ' + error.message),
+          () => subscriptionsCalled.push('complete')
+        );
         expect(subscriptionsCalled).toEqual(['error: This is my error message!']);
       }));
     });

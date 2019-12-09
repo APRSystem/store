@@ -1,17 +1,17 @@
+import { Component } from '@angular/core';
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
 import { combineLatest, Observable, Subscription } from 'rxjs';
 import { first, last } from 'rxjs/operators';
-import { Component } from '@angular/core';
 
-import { Store } from '../src/store';
-import { NgxsModule } from '../src/module';
-import { State } from '../src/decorators/state';
-import { Action } from '../src/decorators/action';
-import { Selector } from '../src/decorators/selector';
-import { Select } from '../src/decorators/select/select';
-import { StateContext } from '../src/symbols';
-import { removeDollarAtTheEnd } from '../src/decorators/select/symbols';
 import { CONFIG_MESSAGES, VALIDATION_CODE } from '../src/configs/messages.config';
+import { Action } from '../src/decorators/action';
+import { Select } from '../src/decorators/select/select';
+import { removeDollarAtTheEnd } from '../src/decorators/select/symbols';
+import { Selector } from '../src/decorators/selector/selector';
+import { State } from '../src/decorators/state';
+import { NgxsModule } from '../src/module';
+import { Store } from '../src/store';
+import { StateContext } from '../src/symbols';
 
 describe('Select', () => {
   interface SubSubStateModel {

@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { StateContext, StateOperator } from '../symbols';
-import { MappedStore } from '../internal/internals';
-import { setValue, getValue } from '../utils/utils';
+import { getStateDiffChanges, MappedStore } from '../internal/internals';
 import { InternalStateOperations } from '../internal/state-operations';
+import { NgxsLifeCycle, NgxsSimpleChange, StateContext, StateOperator } from '../symbols';
+import { getValue, setValue } from '../utils/utils';
 import { simplePatch } from './state-operators';
 
 /**
@@ -18,7 +18,7 @@ export class StateContextFactory {
   /**
    * Create the state context
    */
-  createStateContext<T>(metadata: MappedStore, path?: string): StateContext<T> {
+  createStateContext<T>(mappedStore: MappedStore, path?: string): StateContext<T> {
     const root = this._internalStateOperations.getRootStateOperations();
 
     function getState(currentAppState: any, path: string): T {
@@ -29,6 +29,16 @@ export class StateContextFactory {
     function setStateValue(currentAppState: any, newValue: T, path: string): any {
       // const newAppState = setValue(currentAppState, metadata.depth, newValue);
       const newAppState = setValue(currentAppState, path, newValue);
+      const instance: NgxsLifeCycle = mappedStore.instance;
+
+      if (instance.ngxsOnChanges) {
+        const change: NgxsSimpleChange = getStateDiffChanges<T>(mappedStore, {
+          currentAppState,
+          newAppState
+        });
+
+        instance.ngxsOnChanges(change);
+      }
       root.setState(newAppState);
       return newAppState;
       // In doing this refactoring I noticed that there is a 'bug' where the
@@ -39,7 +49,11 @@ export class StateContextFactory {
       // I will do this fix in a subsequent PR and we can decide how to handle it.
     }
 
-    function setStateFromOperator(currentAppState: any, stateOperator: StateOperator<T>, path: string) {
+    function setStateFromOperator(
+      currentAppState: any,
+      stateOperator: StateOperator<T>,
+      path: string
+    ) {
       const local = getState(currentAppState, path);
       const newValue = stateOperator(local);
       return setStateValue(currentAppState, newValue, path);
@@ -49,7 +63,7 @@ export class StateContextFactory {
       return typeof value === 'function';
     }
     function getPath(path?: string): string {
-      return  path === undefined ? metadata.depth: path;
+      return path === undefined ? mappedStore.depth : path;
     }
 
     return {
@@ -61,8 +75,9 @@ export class StateContextFactory {
       patchState(val: Partial<T>): T {
         const currentAppState = root.getState();
         const patchOperator = simplePatch<T>(val);
-        if (path) {}
-        else {}
+        if (path) {
+        } else {
+        }
         return setStateFromOperator(currentAppState, patchOperator, getPath(path));
       },
       setState(val: T | StateOperator<T>): T {
